@@ -338,6 +338,22 @@ struct EpsilonConstraintStep <: AbstractAlgorithmAttribute end
 
 default(::EpsilonConstraintStep) = 1.0
 
+
+"""
+    LowerBoundsLimit <: AbstractAlgorithmAttribute -> Int
+
+the maximum number of lower bounds calculated at each B&B node.
+
+# Defaults to `1`.
+
+"""
+struct LowerBoundsLimit <: AbstractAlgorithmAttribute end
+
+default(::LowerBoundsLimit) = 1
+
+
+
+
 """
     LexicographicAllPermutations <: AbstractAlgorithmAttribute -> Bool
 
@@ -523,6 +539,7 @@ function MOI.delete(model::Optimizer, ci::MOI.ConstraintIndex)
 end
 
 function MOI.optimize!(model::Optimizer)
+    println(" coucou MOA ... ")
     start_time = time()
     empty!(model.solutions)
     model.termination_status = MOI.OPTIMIZE_NOT_CALLED
