@@ -352,6 +352,32 @@ struct LowerBoundsLimit <: AbstractAlgorithmAttribute end
 default(::LowerBoundsLimit) = 1
 
 
+"""
+    TraverseOrder <: AbstractAlgorithmAttribute -> Symbol
+
+the traversing order in a B&B tree.
+
+# Defaults to `:bfs`.
+
+"""
+struct TraverseOrder <: AbstractAlgorithmAttribute end
+
+default(::TraverseOrder) = :bfs
+
+
+"""
+    Tolerance <: AbstractAlgorithmAttribute -> Float64
+
+numerical tolerance.
+
+# Defaults to `1e-4`.
+
+"""
+struct Tolerance <: AbstractAlgorithmAttribute end
+
+default(::Tolerance) = 1e-4
+
+
 
 
 """
@@ -539,7 +565,13 @@ function MOI.delete(model::Optimizer, ci::MOI.ConstraintIndex)
 end
 
 function MOI.optimize!(model::Optimizer)
-    println(" coucou MOA ... ")
+    # - transfer Max to Min function 
+    MAX_obj_reversed = false
+    if MOI.get(model.inner, MOI.ObjectiveSense()) == MOI.MAX_SENSE
+        MAX_obj_reversed = true ; MOI.set(model.inner, MOI.ObjectiveSense(), MOI.MIN_SENSE)
+        model.f = model.f * -1 
+    end 
+
     start_time = time()
     empty!(model.solutions)
     model.termination_status = MOI.OPTIMIZE_NOT_CALLED
@@ -547,26 +579,38 @@ function MOI.optimize!(model::Optimizer)
         model.termination_status = MOI.INVALID_MODEL
         return
     end
-    objectives = MOI.Utilities.eachscalar(model.f)
-    model.ideal_point = fill(NaN, length(objectives))
-    for (i, f) in enumerate(objectives)
-        MOI.set(model.inner, MOI.ObjectiveFunction{typeof(f)}(), f)
-        MOI.optimize!(model.inner)
-        status = MOI.get(model.inner, MOI.TerminationStatus())
-        if _is_scalar_status_optimal(status)
-            model.ideal_point[i] = MOI.get(model.inner, MOI.ObjectiveValue())
-        end
-    end
+    # todo ; useless ObjectiveBound/model.ideal_point
+    # objectives = MOI.Utilities.eachscalar(model.f)
+    # model.ideal_point = fill(NaN, length(objectives))
+    # for (i, f) in enumerate(objectives)
+    #     MOI.set(model.inner, MOI.ObjectiveFunction{typeof(f)}(), f)
+    #     MOI.optimize!(model.inner)
+    #     status = MOI.get(model.inner, MOI.TerminationStatus())
+    #     if _is_scalar_status_optimal(status)
+    #         model.ideal_point[i] = MOI.get(model.inner, MOI.ObjectiveValue())
+    #     end
+    # end
     algorithm = something(model.algorithm, default(Algorithm()))
     status, solutions = optimize_multiobjective!(algorithm, model)
     model.termination_status = status
-    if solutions !== nothing
-        model.solutions = solutions
-    end
     if MOI.supports(model.inner, MOI.TimeLimitSec())
         MOI.set(model.inner, MOI.TimeLimitSec(), nothing)
     end
     model.solve_time = time() - start_time
+
+    # transfer Min to Max
+    if solutions !== nothing
+        if MAX_obj_reversed
+            MOI.set(model.inner, MOI.ObjectiveSense(), MOI.MAX_SENSE) ; model.f = model.f * -1 
+
+            for sol in solutions
+                push!(model.solutions, SolutionPoint(sol.x, sol.y .* -1))
+            end
+        else
+            model.solutions = solutions
+        end
+    end
+
     return
 end
 
