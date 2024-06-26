@@ -7,22 +7,18 @@ using DataStructures # for queue
 # ---------- Stats information -----
 # ----------------------------------
 mutable struct StatInfo
-    total_times::Float64
     nb_nodes::Int64
     nb_nodes_pruned::Int64
-    TO::Bool
 end
 
 function StatInfo()
-    return StatInfo(0.0, 0, 0.0, false)
+    return StatInfo(0, 0)
 end
 
 function Base.:show(io::IO, info::StatInfo)
     println(io, " # informations of MOB&B algorithm : \n",
-        "total_times_used = $(info.total_times) \n",
         "total_nodes = $(info.nb_nodes) \n",
-        "pruned_nodes = $(info.nb_nodes_pruned) \n",
-        "TO = $(info.TO) \n"
+        "pruned_nodes = $(info.nb_nodes_pruned) \n"
         )
 end
 

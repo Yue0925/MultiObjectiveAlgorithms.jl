@@ -118,11 +118,11 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
     assignment = getPartialAssign(node) ; var = pickUpAFreeVar(assignment, model)
     if var === nothing return end
 
-    children =[ Node(info.nb_nodes + 1, node.depth + 1, pred = node, var_idx = var, var_bound = 1.0, bound_type = 2),
-                Node(info.nb_nodes + 2, node.depth + 1, pred = node, var_idx = var, var_bound = 0.0, bound_type = 1)
+    children =[ Node(model.total_nodes + 1, node.depth + 1, pred = node, var_idx = var, var_bound = 1.0, bound_type = 2),
+                Node(model.total_nodes + 2, node.depth + 1, pred = node, var_idx = var, var_bound = 0.0, bound_type = 1)
     ]
     for child in children
-        addTree(tree, algorithm, child) ; info.nb_nodes += 1
+        addTree(tree, algorithm, child) ; model.total_nodes += 1
         push!(node.succs, child)
     end
 
@@ -137,7 +137,7 @@ function optimize_multiobjective!(
     model::Optimizer,
     # verbose :: Bool = false,
 )
-    start_time = time()
+    start_time = time() ; model.total_nodes = 0
     # step1 - set tolerance to inner model 
     if MOI.get(algorithm, Tolerance()) != default(algorithm, Tolerance())
         MOI.set(model, MOI.RawOptimizerAttribute("tol_inconsistent"), MOI.get(algorithm, Tolerance()))
@@ -155,7 +155,7 @@ function optimize_multiobjective!(
     # step4 - initialization
     UBS = Vector{SupportedSolutionPoint}() ; info = StatInfo()
     tree = initTree(algorithm)
-    info.nb_nodes += 1 ; root = Node(info.nb_nodes, 0)
+    model.total_nodes += 1 ; root = Node(model.total_nodes, 0)
     addTree(tree, algorithm, root)
 
     status = MOI.OPTIMAL

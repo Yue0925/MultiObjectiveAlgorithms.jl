@@ -108,6 +108,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     time_limit_sec::Union{Nothing,Float64}
     solve_time::Float64
     ideal_point::Vector{Float64}
+    total_nodes::Union{Nothing, Int64}
 
     function Optimizer(optimizer_factory)
         return new(
@@ -119,6 +120,7 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             nothing,
             NaN,
             Float64[],
+            nothing,
         )
     end
 end
@@ -130,6 +132,7 @@ function MOI.empty!(model::Optimizer)
     model.termination_status = MOI.OPTIMIZE_NOT_CALLED
     model.solve_time = NaN
     empty!(model.ideal_point)
+    model.total_nodes = nothing
     return
 end
 
@@ -139,7 +142,8 @@ function MOI.is_empty(model::Optimizer)
            isempty(model.solutions) &&
            model.termination_status == MOI.OPTIMIZE_NOT_CALLED &&
            isnan(model.solve_time) &&
-           isempty(model.ideal_point)
+           isempty(model.ideal_point) && 
+           model.total_nodes === nothing
 end
 
 MOI.supports_incremental_interface(::Optimizer) = true
@@ -185,6 +189,11 @@ end
 
 function MOI.get(model::Optimizer, ::MOI.SolveTimeSec)
     return model.solve_time
+end
+
+### NodeCount
+function MOI.get(model::Optimizer, ::MOI.NodeCount)
+    return model.total_nodes
 end
 
 ### ObjectiveFunction
