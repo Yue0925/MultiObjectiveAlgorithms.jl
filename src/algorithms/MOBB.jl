@@ -104,7 +104,7 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
     end
 
     # update the upper bound set 
-    if updateUBS(node, UBS, algorithm) 
+    if updateUBS(node, UBS) 
         info.nb_nodes_pruned += 1 ; return 
     end 
 
