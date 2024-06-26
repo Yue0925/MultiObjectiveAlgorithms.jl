@@ -21,7 +21,12 @@ mutable struct MultiObjectiveBranchBound <: AbstractAlgorithm
     traverse_order :: Union{Nothing, Symbol}                # the traversing order of B&B tree
     tolerance :: Union{Nothing, Float64}                    # numerical tolerance
 
-    MultiObjectiveBranchBound() = new(nothing, nothing, nothing)
+    # --------------- informations for getting attributes 
+    pruned_nodes :: Union{Nothing, Int64}
+
+    MultiObjectiveBranchBound() = new(nothing, nothing, nothing,
+                                      nothing
+                                )
 end
 
 
@@ -60,6 +65,12 @@ function MOI.get(alg::MultiObjectiveBranchBound, attr::Tolerance)
     return something(alg.tolerance, default(alg, attr))
 end
 
+# --------- attributes only for getting 
+MOI.supports(::MultiObjectiveBranchBound, ::PrunedNodeCount) = true
+
+function MOI.get(alg::MultiObjectiveBranchBound, attr::PrunedNodeCount)
+    return something(alg.pruned_nodes, default(alg, attr))
+end
 
 """
     Relax binary variables to continous between 0.0 and 1.0.
@@ -91,7 +102,7 @@ end
 
 
 function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Vector{Dict{MOI.VariableIndex, MOI.ConstraintIndex}},
-            tree, node::Node, UBS::Vector{SupportedSolutionPoint}, info::StatInfo
+            tree, node::Node, UBS::Vector{SupportedSolutionPoint}
 )
     # get the actual node
     @assert node.activated == true "the actual node is not activated "
@@ -99,18 +110,18 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
 
     # calculate the lower bound set 
     if computeLBS(node, model, algorithm, Bounds)
-        prune!(node, INFEASIBILITY) ; info.nb_nodes_pruned += 1
+        prune!(node, INFEASIBILITY) ; algorithm.pruned_nodes += 1
         return
     end
 
     # update the upper bound set 
     if updateUBS(node, UBS) 
-        info.nb_nodes_pruned += 1 ; return 
+        algorithm.pruned_nodes += 1 ; return 
     end 
 
     # test dominance 
     if fullyExplicitDominanceTest(node, UBS, model)
-        prune!(node, DOMINANCE) ; info.nb_nodes_pruned += 1
+        prune!(node, DOMINANCE) ; algorithm.pruned_nodes += 1
         return
     end
 
@@ -137,7 +148,8 @@ function optimize_multiobjective!(
     model::Optimizer,
     # verbose :: Bool = false,
 )
-    start_time = time() ; model.total_nodes = 0
+    model.total_nodes = 0 ; algorithm.pruned_nodes = 0
+    start_time = time()
     # step1 - set tolerance to inner model 
     if MOI.get(algorithm, Tolerance()) != default(algorithm, Tolerance())
         MOI.set(model, MOI.RawOptimizerAttribute("tol_inconsistent"), MOI.get(algorithm, Tolerance()))
@@ -153,7 +165,7 @@ function optimize_multiobjective!(
     Bounds = relaxVariables(model)
 
     # step4 - initialization
-    UBS = Vector{SupportedSolutionPoint}() ; info = StatInfo()
+    UBS = Vector{SupportedSolutionPoint}()
     tree = initTree(algorithm)
     model.total_nodes += 1 ; root = Node(model.total_nodes, 0)
     addTree(tree, algorithm, root)
@@ -169,7 +181,7 @@ function optimize_multiobjective!(
 
         node_ref = nextNodeTree(tree, algorithm)
 
-        MOBB(algorithm, model, Bounds, tree, node_ref[], UBS, info)
+        MOBB(algorithm, model, Bounds, tree, node_ref[], UBS)
         
         if node_ref[].deleted
             finalize(node_ref[])

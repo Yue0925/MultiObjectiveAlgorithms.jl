@@ -387,6 +387,17 @@ struct Tolerance <: AbstractAlgorithmAttribute end
 default(::Tolerance) = 1e-4
 
 
+"""
+    PrunedNodeCount <: AbstractAlgorithmAttribute -> Float64
+
+total pruned nodes.
+
+# Defaults to `0`.
+
+"""
+struct PrunedNodeCount <: AbstractAlgorithmAttribute end
+
+default(::PrunedNodeCount) = 0
 
 
 """

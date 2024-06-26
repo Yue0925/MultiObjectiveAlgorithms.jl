@@ -4,25 +4,6 @@ using DataStructures # for queue
 
 
 # ----------------------------------
-# ---------- Stats information -----
-# ----------------------------------
-mutable struct StatInfo
-    nb_nodes::Int64
-    nb_nodes_pruned::Int64
-end
-
-function StatInfo()
-    return StatInfo(0, 0)
-end
-
-function Base.:show(io::IO, info::StatInfo)
-    println(io, " # informations of MOB&B algorithm : \n",
-        "total_nodes = $(info.nb_nodes) \n",
-        "pruned_nodes = $(info.nb_nodes_pruned) \n"
-        )
-end
-
-# ----------------------------------
 # ---- SupportedSolutionPoint ------
 # ----------------------------------
 mutable struct SupportedSolutionPoint
