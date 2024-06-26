@@ -65,12 +65,11 @@ end
 """
     Return `true` if the given solution point is near to integer under a tolerance.
 """
-# todo : tolerance !!
 function _is_integer(algorithm, x::Vector{Float64})::Bool
     tol = MOI.get(algorithm, Tolerance())
 
     for val in x
-        if !(abs(val - floor(Int64, val)) == 0.0 || abs(ceil(Int64, val) - val ) == 0.0)
+        if !(abs(val - floor(Int64, val)) < tol || abs(ceil(Int64, val) - val ) < tol)
             return false
         end
     end
@@ -381,6 +380,16 @@ function _fix_λ(algorithm, model::Optimizer)
 end
 
 # todo : add equivalent solutions
+function push_avoiding_duplicate(vec::Vector{SupportedSolutionPoint}, candidate::SupportedSolutionPoint) :: Bool
+    for sol in vec
+        if sol.y ≈ candidate.y return false end 
+    end
+    push!(vec, candidate) ; return true
+end
+
+"""
+Stop looking for lower bounds if duplicate is encounterd
+"""
 function MOLP(algorithm, 
                 model::Optimizer, 
                 node::Node
@@ -396,7 +405,8 @@ function MOLP(algorithm,
             if any(test -> test.y ≈ sol.y, node.lower_bound_set)
                 nothing
             else
-                push!(node.lower_bound_set, sol)
+                is_new_point = push_avoiding_duplicate(node.lower_bound_set, sol)
+                if !is_new_point return end
             end
 
         end

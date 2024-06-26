@@ -104,7 +104,7 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
     end
 
     # update the upper bound set 
-    if updateUBS(node, UBS) 
+    if updateUBS(node, UBS, algorithm) 
         info.nb_nodes_pruned += 1 ; return 
     end 
 
@@ -138,6 +138,10 @@ function optimize_multiobjective!(
     # verbose :: Bool = false,
 )
     start_time = time()
+    # step1 - set tolerance to inner model 
+    if MOI.get(algorithm, Tolerance()) != default(algorithm, Tolerance())
+        MOI.set(model, MOI.RawOptimizerAttribute("tol_inconsistent"), MOI.get(algorithm, Tolerance()))
+    end
 
     # step2 - check lower bounds limit 
     if MOI.get(algorithm, LowerBoundsLimit()) < MOI.output_dimension(model.f)
