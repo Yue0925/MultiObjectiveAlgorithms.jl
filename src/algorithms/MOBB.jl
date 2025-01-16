@@ -83,6 +83,11 @@ function relaxVariables(model::Optimizer) :: Vector{Dict{MOI.VariableIndex, MOI.
         ctr_t =  MOI.get(model, MOI.ListOfConstraintIndices{t1,t2}())
 
         if t1 == MOI.VariableIndex
+            # -------------------------------
+            # println("t1 ", t1 , "  , t2 ", t2 )
+            # println("ctr ", ctr_t)
+            # -------------------------------
+
             for ci in ctr_t
                 MOI.delete(model, ci)
             end
@@ -104,6 +109,10 @@ end
 function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Vector{Dict{MOI.VariableIndex, MOI.ConstraintIndex}},
             tree, node::Node, UBS::Vector{SupportedSolutionPoint}
 )
+
+    println("\n\n -------------- node $(node.num) ")
+
+
     # get the actual node
     @assert node.activated == true "the actual node is not activated "
     node.activated = false
@@ -115,9 +124,10 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
     end
 
     # update the upper bound set 
-    if updateUBS(node, UBS) 
+    if updateUBS(node, UBS)
         algorithm.pruned_nodes += 1 ; return 
     end 
+    
 
     # test dominance 
     if fullyExplicitDominanceTest(node, UBS, model)
@@ -161,8 +171,17 @@ function optimize_multiobjective!(
         MOI.set(algorithm, LowerBoundsLimit(), MOI.output_dimension(model.f) +1 )
     end
 
+    # # -------------------------------
+    # println(model)
+    # # -------------------------------
+
     # step3 - LP relaxation 
     Bounds = relaxVariables(model)
+
+    # -------------------------------
+    println(model)
+    # -------------------------------
+
 
     # step4 - initialization
     UBS = Vector{SupportedSolutionPoint}()
@@ -189,7 +208,7 @@ function optimize_multiobjective!(
     end
     
     vars_idx = MOI.get(model, MOI.ListOfVariableIndices())
-
+    # todo : tol rounding 
     return status, [SolutionPoint(
                                     Dict(vars_idx[i] => sol.x[1][i] for i in 1:length(vars_idx) ) , sol.y
                     ) 

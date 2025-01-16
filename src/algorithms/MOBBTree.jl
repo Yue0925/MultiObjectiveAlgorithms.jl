@@ -369,12 +369,13 @@ Stop looking for lower bounds if duplicate is encounterd
 """
 function MOLP(algorithm, 
                 model::Optimizer, 
-                node::Node
+                node::Node;
+                QCR = false
     )
     Λ = _fix_λ(algorithm, model)
 
     for λ in Λ
-        status, solution = _solve_weighted_sum(model, Dichotomy(), λ)
+        status, solution = _solve_weighted_sum(model, Dichotomy(), λ, QCR=true) # todo : 
 
         if _is_scalar_status_optimal(status)
             sol = SupportedSolutionPoint([collect(values(solution.x))], solution.y, λ, _is_integer(algorithm, collect(values(solution.x)))) 
@@ -400,6 +401,10 @@ function computeLBS(node::Node, model::Optimizer, algorithm, Bounds::Vector{Dict
     MOLP(algorithm, model, node)
 
     removeVarBounds(node, model, Bounds)
+
+    # ---------------------------------------------
+    # println("LBS : ", node.lower_bound_set)
+
     return length(node.lower_bound_set) == 0
 end
 
@@ -437,6 +442,10 @@ function updateUBS(node::Node, UBS::Vector{SupportedSolutionPoint})::Bool
             s = node.lower_bound_set[i] ; push_filtering_dominance(UBS, s)
         end
     end
+
+    # --------------------------
+    # println("UBS : ", UBS)
+
     return false
 end
 
@@ -462,8 +471,7 @@ function getNadirPoints(UBS::Vector{SupportedSolutionPoint}, model) :: Vector{Su
             )
         end
     else
-        nothing
-        # todo p > 3
+        nothing     # todo p > 3
     end
     return nadir_pts
 end
