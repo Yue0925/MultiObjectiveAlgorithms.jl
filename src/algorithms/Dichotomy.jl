@@ -4,7 +4,6 @@
 #  obtain one at http://mozilla.org/MPL/2.0/.
 
 using LinearAlgebra
-include("QCRcsdp.jl")
 
 """
     Dichotomy()
@@ -62,68 +61,13 @@ function _solve_weighted_sum(model::Optimizer, alg::Dichotomy, weight::Float64; 
 end
 
 
-"""
-x'*Q*x + c'*x 
-"""
 function _solve_weighted_sum(
     model::Optimizer,
     ::Dichotomy,
-    weights::Vector{Float64};
-    QCR = false
+    weights::Vector{Float64}
 )
     f = _scalarise(model.f, weights)
     MOI.set(model.inner, MOI.ObjectiveFunction{typeof(f)}(), f)
-
-    # verify whether quadratic function is convex 
-    if MOI.get(model.inner, MOI.ObjectiveFunctionType()) == MOI.ScalarQuadraticFunction{Float64}
-        varArray = MOI.get(model.inner, MOI.ListOfVariableIndices())
-        N = length(varArray)
-        varIndex = Dict(varArray[i] => i for i=1:N)
-        Q = zeros(N, N) ; c = zeros(N)
-    
-        for term in f.quadratic_terms
-            if abs(term.coefficient) != 0.0
-                i = varIndex[term.variable_1]; j = varIndex[term.variable_2]
-                Q[i, j] = i==j ? term.coefficient/2 : term.coefficient
-            end
-        end
-
-        for term in f.affine_terms
-            i = varIndex[term.variable]
-            c[i] = term.coefficient
-        end
-    
-        if minimum(eigvals(Q)) < 0.0
-            @warn("Objective function is not convex ! convexified by QCR method ... ")
-        end
-
-        if QCR 
-            newQ, newc, newconst = QCR_csdp(Q, c, f.constant, model, varArray, varIndex)
-
-            if newQ === nothing
-                return MOI.INFEASIBLE, nothing
-            else
-                quad_terms = MOI.ScalarQuadraticTerm{Float64}[
-                    MOI.ScalarQuadraticTerm(
-                        i==j ? newQ[i, j]*2+0.0001 : newQ[i, j],
-                        varArray[i],
-                        varArray[j],
-                    ) for i in 1:N for j in 1:N
-                ]
-
-                affine_terms = MOI.ScalarAffineTerm{Float64}[
-                    MOI.ScalarAffineTerm(
-                        newc[i],
-                        varArray[i],
-                    ) for i in 1:N 
-                ]  
-    
-                QCR_f = MOI.ScalarQuadraticFunction(quad_terms, affine_terms, newconst)
-                MOI.set(model.inner, MOI.ObjectiveFunction{typeof(QCR_f)}(), QCR_f )
-            end
-
-        end
-    end
 
     MOI.optimize!(model.inner)
 
@@ -135,6 +79,8 @@ function _solve_weighted_sum(
     X, Y = _compute_point(model, variables, model.f)
     return status, SolutionPoint(X, Y)
 end
+
+
 
 function optimize_multiobjective!(algorithm::Dichotomy, model::Optimizer)
     start_time = time()

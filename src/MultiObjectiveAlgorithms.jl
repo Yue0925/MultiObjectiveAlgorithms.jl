@@ -388,7 +388,20 @@ default(::Tolerance) = 1e-4
 
 
 """
-    PrunedNodeCount <: AbstractAlgorithmAttribute -> Float64
+    ConvexQCR <: AbstractAlgorithmAttribute -> Bool
+
+ whether active QCR convexification method.
+
+# Defaults to `false`.
+
+"""
+struct ConvexQCR <: AbstractAlgorithmAttribute end
+
+default(::ConvexQCR) = false
+
+
+"""
+    PrunedNodeCount <: AbstractAlgorithmAttribute -> Int64
 
 total pruned nodes.
 
@@ -398,6 +411,112 @@ total pruned nodes.
 struct PrunedNodeCount <: AbstractAlgorithmAttribute end
 
 default(::PrunedNodeCount) = 0
+
+
+"""
+    Heuristic <: AbstractAlgorithmAttribute -> Bool
+
+whether apply heuristic algorithm.
+
+# Defaults to `false`.
+
+"""
+struct Heuristic <: AbstractAlgorithmAttribute end
+
+default(::Heuristic) = false
+
+
+"""
+    HeuristicTime <: AbstractAlgorithmAttribute -> Float64
+
+heuristic time used.
+
+# Defaults to `0.0`.
+
+"""
+struct HeuristicTime <: AbstractAlgorithmAttribute end
+
+default(::HeuristicTime) = 0.0
+
+
+
+"""
+    NBvars <: AbstractAlgorithmAttribute -> Int64
+
+total number of variables.
+
+# Defaults to `0`.
+
+"""
+struct NBvars <: AbstractAlgorithmAttribute end
+
+default(::NBvars) = 0
+
+
+"""
+    QObj <: AbstractAlgorithmAttribute -> Vector{Matrix{Float64}}
+
+total pruned nodes.
+
+# Defaults to `Vector{Matrix{Float64}}()`.
+
+"""
+struct QObj <: AbstractAlgorithmAttribute end
+
+default(::QObj) = Vector{Matrix{Float64}}()
+
+
+"""
+    Aeq <: AbstractAlgorithmAttribute -> Matrix{Float64}
+
+total pruned nodes.
+
+# Defaults to `zeros(0,0)`.
+
+"""
+struct Aeq <: AbstractAlgorithmAttribute end
+
+default(::Aeq) = zeros(0,0)
+
+"""
+    Aiq <: AbstractAlgorithmAttribute -> Matrix{Float64}
+
+total pruned nodes.
+
+# Defaults to `zeros(0,0)`.
+
+"""
+struct Aiq <: AbstractAlgorithmAttribute end
+
+default(::Aiq) = zeros(0,0)
+
+
+"""
+    Beq <: AbstractAlgorithmAttribute -> Vector{Float64}
+
+total pruned nodes.
+
+# Defaults to `Vector{Float64}()`.
+
+"""
+struct Beq <: AbstractAlgorithmAttribute end
+
+default(::Beq) = Vector{Float64}()
+
+
+"""
+    Biq <: AbstractAlgorithmAttribute -> Vector{Float64}
+
+total pruned nodes.
+
+# Defaults to `Vector{Float64}()`.
+
+"""
+struct Biq <: AbstractAlgorithmAttribute end
+
+default(::Biq) = Vector{Float64}()
+
+
 
 
 """

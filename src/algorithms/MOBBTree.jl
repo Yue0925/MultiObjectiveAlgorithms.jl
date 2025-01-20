@@ -3,11 +3,21 @@ using DataStructures # for queue
 @enum PrunedType NONE INFEASIBILITY INTEGRITY DOMINANCE
 
 
+mutable struct QCRcoefficients
+    Q::Matrix{Float64}
+    c::Vector{Float64}
+    constant::Float64
+end
+
+function QCRcoefficients()
+    return QCRcoefficients(zeros(0,0), zeros(0), 0.0)
+end
+
 # ----------------------------------
 # ---- SupportedSolutionPoint ------
 # ----------------------------------
 mutable struct SupportedSolutionPoint
-    x::Vector{Vector{Float64}}
+    x::Set{Vector{Float64}}
     y::Vector{Float64}
     λ :: Vector{Float64}
     is_integer :: Bool 
@@ -71,6 +81,7 @@ mutable struct Node
     deleted::Bool               # if the node is supposed to be deleted
     lower_bound_set::Vector{SupportedSolutionPoint}        # local lower bound set    
     assignment::Dict{MOI.VariableIndex, Float64}  # (varidex, varbound, boundtype)
+    qcr_coeff::QCRcoefficients
 
     Node() = new()
 
@@ -93,6 +104,7 @@ mutable struct Node
         n.deleted = false
         n.lower_bound_set = Vector{SupportedSolutionPoint}()
         n.assignment = Dict{MOI.VariableIndex, Float64}()
+        n.qcr_coeff = QCRcoefficients()
 
         f(t) = nothing 
         finalizer(f, n)
@@ -370,15 +382,14 @@ Stop looking for lower bounds if duplicate is encounterd
 function MOLP(algorithm, 
                 model::Optimizer, 
                 node::Node;
-                QCR = false
     )
     Λ = _fix_λ(algorithm, model)
 
     for λ in Λ
-        status, solution = _solve_weighted_sum(model, Dichotomy(), λ, QCR=true) # todo : 
+        status, solution = solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), algorithm, node.qcr_coeff)
 
         if _is_scalar_status_optimal(status)
-            sol = SupportedSolutionPoint([collect(values(solution.x))], solution.y, λ, _is_integer(algorithm, collect(values(solution.x)))) 
+            sol = SupportedSolutionPoint(Set( [collect(values(solution.x)) ] ), solution.y, λ, _is_integer(algorithm, collect(values(solution.x)))) 
             
             if any(test -> test.y ≈ sol.y, node.lower_bound_set)
                 nothing
@@ -443,9 +454,6 @@ function updateUBS(node::Node, UBS::Vector{SupportedSolutionPoint})::Bool
         end
     end
 
-    # --------------------------
-    # println("UBS : ", UBS)
-
     return false
 end
 
@@ -464,7 +472,7 @@ function getNadirPoints(UBS::Vector{SupportedSolutionPoint}, model) :: Vector{Su
 
     if p == 2
         for i in 1:length(UBS)-1
-            push!(nadir_pts, SupportedSolutionPoint(Vector{Vector{Float64}}(), 
+            push!(nadir_pts, SupportedSolutionPoint(Set{Vector{Float64}}(), 
                                                     [UBS[i+1].y[1], UBS[i].y[2]], 
                                                     Vector{Float64}(), false
                                                 )
@@ -511,8 +519,8 @@ function fullyExplicitDominanceTest(node::Node, UBS::Vector{SupportedSolutionPoi
             if node.lower_bound_set[i].y[z] < LBS_ideal[z] LBS_ideal[z] = node.lower_bound_set[i].y[z] end 
         end
     end
-    UBS_ideal_sp = SupportedSolutionPoint(Vector{Vector{Float64}}(), UBS_ideal, Vector{Float64}(), false)
-    LBS_ideal_sp = SupportedSolutionPoint(Vector{Vector{Float64}}(), LBS_ideal, Vector{Float64}(), false)
+    UBS_ideal_sp = SupportedSolutionPoint(Set{Vector{Float64}}(), UBS_ideal, Vector{Float64}(), false)
+    LBS_ideal_sp = SupportedSolutionPoint(Set{Vector{Float64}}(), LBS_ideal, Vector{Float64}(), false)
 
     # ----------------------------------------------
     # if the LBS consists of hyperplanes

@@ -26,7 +26,7 @@
  * the GNU-C compiler under MAC OS X 14.6.1. To obtain an exacutable code
  * compile with
  *
- *   gcc -O3 BestHybrid_objreel.c -o BestHybrid_objreel
+ *   gcc -O3 BestHybrid_objreel_yue.c -o BestHybrid_objreel_yue
  *
  * The program reads three arguments
  *
@@ -737,7 +737,7 @@ int main(int argc, char *argv[])
   for (i=0; i<n; i++)
     if(xsol[i]){
       // printf("xsol[%d] = %d\n", i, xsol[i]);
-      fprintf(f, "%d %d \n", i, xsol[i]) ; 
+      fprintf(f, "%d %d \n", i+1, xsol[i]) ; 
     }
   fclose(f) ; 
 
