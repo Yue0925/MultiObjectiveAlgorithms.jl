@@ -19,7 +19,7 @@ function invokeSOheuristic(λ, model::Optimizer, algorithm::MultiObjectiveBranch
         end
     end
 
-    println(λ)
+    # println(λ)
     # println(Q)
 
     println(fout, length(mat))

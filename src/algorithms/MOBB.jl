@@ -234,7 +234,7 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
             tree, node::Node, UBS::Vector{SupportedSolutionPoint}
 )
 
-    # println("\n\n -------------- node $(node.num) ")
+    println("\n\n -------------- node $(node.num) ")
 
     # get the actual node
     @assert node.activated == true "the actual node is not activated "
@@ -243,19 +243,26 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
     # calculate the lower bound set 
     if computeLBS(node, model, algorithm, Bounds)
         prune!(node, INFEASIBILITY) ; algorithm.pruned_nodes += 1
+        println(node)
         return
+        nothing
     end
 
     # update the upper bound set 
     if updateUBS(node, UBS)
-        algorithm.pruned_nodes += 1 ; return 
+        prune!(node, INTEGRITY) ; algorithm.pruned_nodes += 1 
+        println(node)
+        return 
+        nothing
     end 
     
 
     # test dominance 
     if fullyExplicitDominanceTest(node, UBS, model)
         prune!(node, DOMINANCE) ; algorithm.pruned_nodes += 1
+        println(node)
         return
+        nothing
     end
 
     # otherwise this node is not fathomed, continue to branch on free variable
@@ -270,6 +277,7 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
         push!(node.succs, child)
     end
 
+    println(node)
 end
 
 # -------------------------------------
@@ -294,16 +302,8 @@ function optimize_multiobjective!(
         MOI.set(algorithm, LowerBoundsLimit(), MOI.output_dimension(model.f) +1 )
     end
 
-    # # -------------------------------
-    # println(model)
-    # # -------------------------------
-
     # step3 - LP relaxation 
     Bounds = relaxVariables(model)
-
-    # -------------------------------
-    println(model)
-    # -------------------------------
 
     _loadMatrices(algorithm, model)
 

@@ -2,8 +2,8 @@ using JuMP, LinearAlgebra, CSDP
 include("MOBB.jl")
 
 
-function QCR_csdp(Q, c, constant, model::Optimizer, varArray, varIndex, 
-                                    algorithm::MultiObjectiveBranchBound, qcr_coeff::QCRcoefficients 
+function QCR_csdp(Q, c, constant, varArray, 
+                                algorithm::MultiObjectiveBranchBound, qcr_coeff::QCRcoefficients 
     )
     N = length(varArray)
 
@@ -103,7 +103,7 @@ function solve_weighted_sum(
     
  
         if QCR 
-            is_solved = QCR_csdp(Q, c, f.constant, model, varArray, varIndex, algorithm, qcr_coeff)
+            is_solved = QCR_csdp(Q, c, f.constant, varArray, algorithm, qcr_coeff)
 
             if !is_solved
                 return MOI.INFEASIBLE, nothing

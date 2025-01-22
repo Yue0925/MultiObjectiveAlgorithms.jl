@@ -32,6 +32,11 @@ function dominates(a::SupportedSolutionPoint, b::SupportedSolutionPoint)
     end
 end
 
+function Base.isapprox(a::SupportedSolutionPoint, b::SupportedSolutionPoint)
+    tol = MOI.get(MultiObjectiveBranchBound(), Tolerance())
+    return all(abs.(a.y - b.y) .≤ tol)
+end
+
 function Base.:show(io::IO, sol::SupportedSolutionPoint)
     println(io, "(y=", sol.y,  
     "; λ=", sol.λ,
@@ -52,14 +57,15 @@ end
 """
     Return `true` if the given solution point is near to integer under a tolerance.
 """
-function _is_integer(algorithm, x::Vector{Float64})::Bool
-    tol = MOI.get(algorithm, Tolerance())
+function _is_integer(x::Vector{Float64})::Bool
+    tol = MOI.get(MultiObjectiveBranchBound(), Tolerance())
 
     for val in x
         if !(abs(val - floor(Int64, val)) < tol || abs(ceil(Int64, val) - val ) < tol)
             return false
         end
     end
+
     return true
 end
 
@@ -317,22 +323,13 @@ Pick up a free variable to be split according to the prefiexd strategy.
 """
 # todo : add other strategies ...
 function pickUpAFreeVar(assignment::Dict{MOI.VariableIndex, Float64}, model) :: Union{Nothing, MOI.VariableIndex}
-    # if pb.param.branching == :arbitrary
-    #     free_vars = [ind for ind in 1:length(pb.varArray)]
-    #     fixed_var = collect(keys(assignment))
-    #     filter!(v -> v ∉ fixed_var, free_vars)
-    #     return (length(free_vars) > 0) ? free_vars[rand(1:length(free_vars))] : 0
-    # else
-        # static order
-        
-        vars_idx = MOI.get(model, MOI.ListOfVariableIndices())
+    vars_idx = MOI.get(model, MOI.ListOfVariableIndices())
 
-        if length(assignment) == length(vars_idx) return nothing end # todo : for binary vars only !!
+    if length(assignment) == length(vars_idx) return nothing end # todo : for binary vars only !!
 
-        for v in vars_idx
-            if !haskey(assignment, v) return v end 
-        end
-    # end
+    for v in vars_idx
+        if !haskey(assignment, v) return v end 
+    end
     return nothing
 end
 
@@ -371,7 +368,7 @@ end
 # todo : add equivalent solutions
 function push_avoiding_duplicate(vec::Vector{SupportedSolutionPoint}, candidate::SupportedSolutionPoint) :: Bool
     for sol in vec
-        if sol.y ≈ candidate.y return false end 
+        if sol ≈ candidate return false end 
     end
     push!(vec, candidate) ; return true
 end
@@ -389,15 +386,21 @@ function MOLP(algorithm,
         status, solution = solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), algorithm, node.qcr_coeff)
 
         if _is_scalar_status_optimal(status)
-            sol = SupportedSolutionPoint(Set( [collect(values(solution.x)) ] ), solution.y, λ, _is_integer(algorithm, collect(values(solution.x)))) 
+            sol = SupportedSolutionPoint(Set( [collect(values(solution.x)) ] ), solution.y, λ, _is_integer(collect(values(solution.x)))) 
             
-            if any(test -> test.y ≈ sol.y, node.lower_bound_set)
-                nothing
-            else
-                is_new_point = push_avoiding_duplicate(node.lower_bound_set, sol)
-                if !is_new_point return end
+            if sol.is_integer
+                x_val = round.(Int64, first(sol.x))
+                sol.x = Set( [x_val .*1.0 ])
+                sol.y = round.(Int64, sol.y) .*1.0
             end
+            # if any(test -> test ≈ sol, node.lower_bound_set)
+            #     nothing
+            # else
+            #     is_new_point = push_avoiding_duplicate(node.lower_bound_set, sol)
+            #     if !is_new_point return end
+            # end
 
+            push_filtering_dominance(node.lower_bound_set, sol)
         end
     end
 end
@@ -413,21 +416,19 @@ function computeLBS(node::Node, model::Optimizer, algorithm, Bounds::Vector{Dict
 
     removeVarBounds(node, model, Bounds)
 
-    # ---------------------------------------------
-    # println("LBS : ", node.lower_bound_set)
-
     return length(node.lower_bound_set) == 0
 end
 
-# todo : improve algo complexity ...
+
 function push_filtering_dominance(vec::Vector{SupportedSolutionPoint}, candidate::SupportedSolutionPoint)
     i = 0 ; to_delete = []
 
     for sol in vec
         i += 1
 
-        if sol.y ≈ candidate.y
+        if sol ≈ candidate
             # Point already added to nondominated solutions. Don't add
+            sol.λ = candidate.λ[:]
             for equiv in candidate.x push!(sol.x, equiv) end 
             return
         elseif dominates(sol, candidate)
@@ -448,13 +449,20 @@ At the given node, update (filtered by dominance) the global upper bound set.
 Return `true` if the node is pruned by integrity.
 """
 function updateUBS(node::Node, UBS::Vector{SupportedSolutionPoint})::Bool
-    for i in 1:length(node.lower_bound_set) 
-        if node.lower_bound_set[i].is_integer
-            s = node.lower_bound_set[i] ; push_filtering_dominance(UBS, s)
+    integrity = false
+    if length(node.lower_bound_set) ==1 && node.lower_bound_set[1].is_integer
+        s = node.lower_bound_set[1] ; push_filtering_dominance(UBS, s)
+        integrity = true
+    else
+        for i in 1:length(node.lower_bound_set) 
+            if node.lower_bound_set[i].is_integer
+                s = node.lower_bound_set[i] ; push_filtering_dominance(UBS, s)
+            end
         end
     end
+    println("UBS = ", UBS)
 
-    return false
+    return integrity
 end
 
 # ----------------------------------
@@ -491,7 +499,7 @@ Return `true` if the given node is fathomed by dominance.
 """
 function fullyExplicitDominanceTest(node::Node, UBS::Vector{SupportedSolutionPoint}, model)
     # we can't compare the LBS and UBS if the incumbent set is empty
-    if length(UBS) == 0 return false end
+    if length(UBS) == 0 || length(node.lower_bound_set)==0 return false end
 
     p = MOI.output_dimension(model.f) ; nadir_pts = getNadirPoints(UBS, model)
 
@@ -522,6 +530,14 @@ function fullyExplicitDominanceTest(node::Node, UBS::Vector{SupportedSolutionPoi
     UBS_ideal_sp = SupportedSolutionPoint(Set{Vector{Float64}}(), UBS_ideal, Vector{Float64}(), false)
     LBS_ideal_sp = SupportedSolutionPoint(Set{Vector{Float64}}(), LBS_ideal, Vector{Float64}(), false)
 
+    # if node.num == 75
+    #     @info "UBS_ideal = $UBS_ideal"
+    #     @info "LBS_ideal = $LBS_ideal"
+    #     println("UBS_ideal_sp = ", UBS_ideal_sp)
+    #     println("LBS_ideal_sp = ", LBS_ideal_sp)
+    #     println("dominates(UBS_ideal_sp, LBS_ideal_sp) ? ", dominates(UBS_ideal_sp, LBS_ideal_sp))
+    # end
+
     # ----------------------------------------------
     # if the LBS consists of hyperplanes
     # ----------------------------------------------
@@ -535,7 +551,6 @@ function fullyExplicitDominanceTest(node::Node, UBS::Vector{SupportedSolutionPoi
     if !dominates( UBS_ideal_sp, LBS_ideal_sp)  return false end
 
     # test condition necessary 2 : UBS dominates LBS 
-    fathomed = true
 
     # iterate of all local nadir points
     for u ∈ nadir_pts

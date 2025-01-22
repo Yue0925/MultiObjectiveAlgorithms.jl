@@ -727,7 +727,7 @@ int main(int argc, char *argv[])
     memcpy(xsol, x, MSIZE*sizeof(boolean));
   }
 //    printf("%d: c %d nbobj %d time %.2lf valeur sol heur BestHybrid: %f\n\n", v, c, nbobj, time, zbest);
-  printf("%d: c %d nbobj %d valeur sol heur BestHybrid: %f\n\n", v, c, nbobj, zbest);
+  // printf("%d: c %d nbobj %d valeur sol heur BestHybrid: %f\n\n", v, c, nbobj, zbest);
   fflush(NULL);
 
 // }
