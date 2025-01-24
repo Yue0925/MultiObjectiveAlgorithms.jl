@@ -4,13 +4,13 @@ using DataStructures # for queue
 
 
 mutable struct QCRcoefficients
-    Q::Matrix{Float64}
-    c::Vector{Float64}
-    constant::Float64
+    Q::Vector{Matrix{Float64}}
+    c::Vector{Vector{Float64}}
+    constant::Vector{Float64}
 end
 
 function QCRcoefficients()
-    return QCRcoefficients(zeros(0,0), zeros(0), 0.0)
+    return QCRcoefficients(Vector{Matrix{Float64}}(), Vector{Vector{Float64}}(), Vector{Float64}())
 end
 
 # ----------------------------------
@@ -337,19 +337,11 @@ end
 # ----------------------------------
 # ---------- Bound Sets ------------
 # ----------------------------------
-function _fix_λ(algorithm, model::Optimizer)
-    p = MOI.output_dimension(model.f) ; Λ = []
-    for i in 1:p
-        λ = zeros(p) ; λ[i] = 1.0
-        push!(Λ, λ) 
-    end
-    λ = [1/p for _ in 1:p] ; push!(Λ, λ)
-    
-    λ_count = MOI.get(algorithm, LowerBoundsLimit()) - length(Λ)
-
+function _fix_λ(λ_count, p, Λ)
+    λ = Λ[end]
     # in case of LowerBoundsLimit() > p+1
     for i in 1:p
-        if λ_count <= 0 return Λ end
+        if λ_count <= 0 return end
         λ_ = (λ .+ Λ[i]) ./2
         push!(Λ, λ_) ; λ_count -= 1
     end
@@ -361,8 +353,6 @@ function _fix_λ(algorithm, model::Optimizer)
             push!(Λ, λ_) ; λ_count -= 1
         end
     end
-
-    return Λ
 end
 
 # todo : add equivalent solutions
@@ -380,17 +370,36 @@ function MOLP(algorithm,
                 model::Optimizer, 
                 node::Node;
     )
-    Λ = _fix_λ(algorithm, model)
+
+    Λ = [] ; p = MOI.output_dimension(model.f)
+
+    # convexifier each p objective function 
+    for i in 1:p
+        λ = zeros(p) ; λ[i] = 1.0
+        push!(Λ, λ) 
+
+        if MOI.get(algorithm, ConvexQCR())
+            is_solved = QCR_csdp(algorithm.Qs[i], zeros(algorithm.nb_vars), 0.0, 
+                                    model, algorithm, node.qcr_coeff
+                        )
+            is_solved ? nothing : return
+        end
+    end
+
+    λ = [1/p for _ in 1:p] ; push!(Λ, λ)
+    λ_count = MOI.get(algorithm, LowerBoundsLimit()) - length(Λ)
+    _fix_λ(λ_count, p, Λ)
 
     for λ in Λ
-        status, solution = solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), algorithm, node.qcr_coeff)
+        status, x, y = solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff)
 
         if _is_scalar_status_optimal(status)
-            sol = SupportedSolutionPoint(Set( [collect(values(solution.x)) ] ), solution.y, λ, _is_integer(collect(values(solution.x)))) 
+            sol = SupportedSolutionPoint(Set( [ x ] ), y, λ, _is_integer( x ) ) 
             
             if sol.is_integer
                 x_val = round.(Int64, first(sol.x))
                 sol.x = Set( [x_val .*1.0 ])
+                # todo : dangerours only for integer coefficients !! 
                 sol.y = round.(Int64, sol.y) .*1.0
             end
             # if any(test -> test ≈ sol, node.lower_bound_set)
@@ -403,6 +412,7 @@ function MOLP(algorithm,
             push_filtering_dominance(node.lower_bound_set, sol)
         end
     end
+
 end
 
 """
@@ -460,7 +470,7 @@ function updateUBS(node::Node, UBS::Vector{SupportedSolutionPoint})::Bool
             end
         end
     end
-    println("UBS = ", UBS)
+    # println("UBS = ", UBS)
 
     return integrity
 end
@@ -530,14 +540,6 @@ function fullyExplicitDominanceTest(node::Node, UBS::Vector{SupportedSolutionPoi
     UBS_ideal_sp = SupportedSolutionPoint(Set{Vector{Float64}}(), UBS_ideal, Vector{Float64}(), false)
     LBS_ideal_sp = SupportedSolutionPoint(Set{Vector{Float64}}(), LBS_ideal, Vector{Float64}(), false)
 
-    # if node.num == 75
-    #     @info "UBS_ideal = $UBS_ideal"
-    #     @info "LBS_ideal = $LBS_ideal"
-    #     println("UBS_ideal_sp = ", UBS_ideal_sp)
-    #     println("LBS_ideal_sp = ", LBS_ideal_sp)
-    #     println("dominates(UBS_ideal_sp, LBS_ideal_sp) ? ", dominates(UBS_ideal_sp, LBS_ideal_sp))
-    # end
-
     # ----------------------------------------------
     # if the LBS consists of hyperplanes
     # ----------------------------------------------
@@ -551,7 +553,6 @@ function fullyExplicitDominanceTest(node::Node, UBS::Vector{SupportedSolutionPoi
     if !dominates( UBS_ideal_sp, LBS_ideal_sp)  return false end
 
     # test condition necessary 2 : UBS dominates LBS 
-
     # iterate of all local nadir points
     for u ∈ nadir_pts
         existence = false

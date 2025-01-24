@@ -2,20 +2,36 @@ using JuMP, LinearAlgebra, CSDP
 include("MOBB.jl")
 
 
-function QCR_csdp(Q, c, constant, varArray, 
+function QCR_csdp(Q, c, constant, model,
                                 algorithm::MultiObjectiveBranchBound, qcr_coeff::QCRcoefficients 
     )
+    varArray = MOI.get(model.inner, MOI.ListOfVariableIndices())
     N = length(varArray)
+    varIndex = Dict(varArray[i] => i for i=1:N)
 
     # SDP model ...
-    model_sdp = Model(CSDP.Optimizer) ; JuMP.set_silent(model_sdp)
+    model_sdp = Model(CSDP.Optimizer) ; JuMP.set_silent(model_sdp) 
     set_attribute(model_sdp, "axtol", 1.0e-5) ; set_attribute(model_sdp, "atytol", 1.0e-5)
+    set_attribute(model_sdp, "maxiter", 200) 
 
     @variable(model_sdp, x[1:N] )
     sdpIndex = Dict(x[i] => i for i=1:N)
 
     @variable(model_sdp, X[1:N, 1:N], Symmetric)
     @constraint(model_sdp, [1 x'; x X] in PSDCone())
+
+    # variable assignment
+    ctr_t =  MOI.get(model.inner, MOI.ListOfConstraintIndices{MOI.VariableIndex, MOI.GreaterThan{Float64}}())
+    for ci in ctr_t
+        i = varIndex[ MOI.get(model.inner, MOI.ConstraintFunction(), ci) ]
+        @constraint(model_sdp, x[i] >= MOI.get(model.inner, MOI.ConstraintSet(), ci).lower )
+    end
+
+    ctr_t =  MOI.get(model.inner, MOI.ListOfConstraintIndices{MOI.VariableIndex, MOI.LessThan{Float64}}())
+    for ci in ctr_t
+        i = varIndex[ MOI.get(model.inner, MOI.ConstraintFunction(), ci) ]
+        @constraint(model_sdp, x[i] <= MOI.get(model.inner, MOI.ConstraintSet(), ci).upper )
+    end
 
     M = length(algorithm.b_eq)
 
@@ -33,8 +49,6 @@ function QCR_csdp(Q, c, constant, varArray,
     optimize!(model_sdp)
 
     if termination_status(model_sdp)== OPTIMAL
-        # obj = objective_value(model_sdp)
-
         μ = dual.(con_μ)
         β = dual(con_β)
 
@@ -42,21 +56,23 @@ function QCR_csdp(Q, c, constant, varArray,
                                 sum((-μ[i])* (x[i]^2 - x[i]) for i in 1:N) -
                                 β * sum( (algorithm.A_eq[k, :]'*x - algorithm.b_eq[k] )^2 for k in 1:M)
         )
-        qcr_coeff.Q = zeros(N, N) ; qcr_coeff.c = zeros(N) ; qcr_coeff.constant = newf.aff.constant
+        Q = zeros(N, N) ; c = zeros(N) ; constant = newf.aff.constant
 
         for (p, v) in newf.terms
             i = sdpIndex[p.a] ; j = sdpIndex[p.b]
             if i == j 
-                qcr_coeff.Q[i,j] = v
+                Q[i,j] = v
             else
-                qcr_coeff.Q[i, j] = v/2 ; qcr_coeff.Q[j, i] = v/2
+                Q[i, j] = v/2 ; Q[j, i] = v/2
             end
         end
 
         for (k, v) in newf.aff.terms
             i = sdpIndex[k]
-            qcr_coeff.c[i] = v
+            c[i] = v
         end
+
+        push!(qcr_coeff.Q, Q) ; push!(qcr_coeff.c, c) ; push!(qcr_coeff.constant, constant)
 
         return true
 
@@ -74,70 +90,72 @@ x'*Q*x + c'*x
 """
 function solve_weighted_sum(
     model::Optimizer,
-    weights::Vector{Float64},
+    λ::Vector{Float64},
     QCR::Bool,
-    algorithm::MultiObjectiveBranchBound, 
-    qcr_coeff::QCRcoefficients 
-)
-    f = _scalarise(model.f, weights)
-    MOI.set(model.inner, MOI.ObjectiveFunction{typeof(f)}(), f)
+    qcr_coeff::QCRcoefficients
+) 
 
-    # verify whether quadratic function is convex 
-    if MOI.get(model.inner, MOI.ObjectiveFunctionType()) == MOI.ScalarQuadraticFunction{Float64}
-        varArray = MOI.get(model.inner, MOI.ListOfVariableIndices())
-        N = length(varArray)
-        varIndex = Dict(varArray[i] => i for i=1:N)
-        Q = zeros(N, N) ; c = zeros(N)
+    varArray = MOI.get(model.inner, MOI.ListOfVariableIndices())
+    N = length(varArray)
+    varIndex = Dict(varArray[i] => i for i=1:N)
+
+    if !QCR 
+        f = _scalarise(model.f, λ)
+        MOI.set(model.inner, MOI.ObjectiveFunction{typeof(f)}(), f)
+
+        MOI.optimize!(model.inner)
     
-        for term in f.quadratic_terms
-            if abs(term.coefficient) != 0.0
-                i = varIndex[term.variable_1]; j = varIndex[term.variable_2]
-                Q[i, j] = i==j ? term.coefficient/2 : term.coefficient
-            end
-        end
-
-        for term in f.affine_terms
-            i = varIndex[term.variable]
-            c[i] = term.coefficient
+        status = MOI.get(model.inner, MOI.TerminationStatus())
+        if !_is_scalar_status_optimal(status)
+            return status, nothing, nothing
         end
     
- 
-        if QCR 
-            is_solved = QCR_csdp(Q, c, f.constant, varArray, algorithm, qcr_coeff)
-
-            if !is_solved
-                return MOI.INFEASIBLE, nothing
-            else
-                quad_terms = MOI.ScalarQuadraticTerm{Float64}[
-                    MOI.ScalarQuadraticTerm(
-                        i==j ? qcr_coeff.Q[i, j]*2+0.0001 : qcr_coeff.Q[i, j],
-                        varArray[i],
-                        varArray[j],
-                    ) for i in 1:N for j in 1:N
-                ]
-
-                affine_terms = MOI.ScalarAffineTerm{Float64}[
-                    MOI.ScalarAffineTerm(
-                        qcr_coeff.c[i],
-                        varArray[i],
-                    ) for i in 1:N 
-                ]  
-    
-                QCR_f = MOI.ScalarQuadraticFunction(quad_terms, affine_terms, qcr_coeff.constant)
-                MOI.set(model.inner, MOI.ObjectiveFunction{typeof(QCR_f)}(), QCR_f )
-            end
-
+        X, Y = _compute_point(model, varArray, model.f)
+        sol = zeros(N)
+        for (x, val) in X
+            sol[varIndex[x]] = val
         end
-    end
+        return status, sol, Y
+    end    
+
+    Q = sum( λ[p].* qcr_coeff.Q[p] for p in 1:length(λ))
+    c = sum( λ[p].* qcr_coeff.c[p] for p in 1:length(λ) )
+    constant = λ'* qcr_coeff.constant
+
+    quad_terms = MOI.ScalarQuadraticTerm{Float64}[
+        MOI.ScalarQuadraticTerm(
+            i==j ? Q[i, j]*2 +0.0001 : Q[i, j],
+            varArray[i],
+            varArray[j],
+        ) for i in 1:N for j in 1:N
+    ]
+
+    affine_terms = MOI.ScalarAffineTerm{Float64}[
+        MOI.ScalarAffineTerm(
+            c[i],
+            varArray[i],
+        ) for i in 1:N 
+    ]  
+
+    QCR_f = MOI.ScalarQuadraticFunction(quad_terms, affine_terms, constant)
+    MOI.set(model.inner, MOI.ObjectiveFunction{typeof(QCR_f)}(), QCR_f )
 
     MOI.optimize!(model.inner)
 
     status = MOI.get(model.inner, MOI.TerminationStatus())
     if !_is_scalar_status_optimal(status)
-        return status, nothing
+        return status, nothing, nothing
     end
-    variables = MOI.get(model.inner, MOI.ListOfVariableIndices())
-    X, Y = _compute_point(model, variables, model.f)
-    return status, SolutionPoint(X, Y)
+    
+    sol = zeros(N)
+    for x in varArray
+        sol[varIndex[x]] = MOI.get(model.inner, MOI.VariablePrimal(), x)
+    end
+
+    Y = [sol'* qcr_coeff.Q[p] *sol + sol'* qcr_coeff.c[p] + qcr_coeff.constant[p] for p in 1:length(λ)]
+
+    return status, sol, Y
+
+        
 end
 
