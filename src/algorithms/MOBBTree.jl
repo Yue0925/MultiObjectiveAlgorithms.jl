@@ -390,17 +390,29 @@ function MOLP(algorithm,
     λ_count = MOI.get(algorithm, LowerBoundsLimit()) - length(Λ)
     _fix_λ(λ_count, p, Λ)
 
+    iter = 0
     for λ in Λ
-        status, x, y = solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff)
+        iter += 1
+        # status, x, y = solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff)
+
+        # if status==OPTIMAL println("λ = ", λ , "\t qcr value = ", λ'*y ) end 
+        println("λ ", λ)
+
+        status, x, y = column_generation_algorithm(model, algorithm, sum( λ[i].* node.qcr_coeff.Q[i] for i in 1:p), 
+                                        sum( λ[i].* node.qcr_coeff.c[i] for i in 1:p ), λ'* node.qcr_coeff.constant, 
+                                        sum( λ[i].* algorithm.Qs[i] for i in 1:p)
+                                    )
+
+        # if status==OPTIMAL println("DWR value = ", λ'*y) end 
 
         if _is_scalar_status_optimal(status)
+           
             sol = SupportedSolutionPoint(Set( [ x ] ), y, λ, _is_integer( x ) ) 
             
             if sol.is_integer
-                x_val = round.(Int64, first(sol.x))
-                sol.x = Set( [x_val .*1.0 ])
-                # todo : dangerours only for integer coefficients !! 
-                sol.y = round.(Int64, sol.y) .*1.0
+                x_val = round.(Int64, first(sol.x)) .*1.0
+                sol.x = Set( [x_val])
+                sol.y = [ x_val'* algorithm.Qs[i] *x_val for i in 1:p]
             end
             # if any(test -> test ≈ sol, node.lower_bound_set)
             #     nothing
@@ -411,6 +423,7 @@ function MOLP(algorithm,
 
             push_filtering_dominance(node.lower_bound_set, sol)
         end
+        if iter==2 && length(node.lower_bound_set) < iter return end  
     end
 
 end
@@ -438,7 +451,6 @@ function push_filtering_dominance(vec::Vector{SupportedSolutionPoint}, candidate
 
         if sol ≈ candidate
             # Point already added to nondominated solutions. Don't add
-            sol.λ = candidate.λ[:]
             for equiv in candidate.x push!(sol.x, equiv) end 
             return
         elseif dominates(sol, candidate)
@@ -470,7 +482,7 @@ function updateUBS(node::Node, UBS::Vector{SupportedSolutionPoint})::Bool
             end
         end
     end
-    # println("UBS = ", UBS)
+    println("UBS = ", UBS)
 
     return integrity
 end

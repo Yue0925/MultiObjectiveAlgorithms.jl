@@ -234,7 +234,7 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
             tree, node::Node, UBS::Vector{SupportedSolutionPoint}
 )
 
-    # println("\n\n -------------- node $(node.num) ")
+    println("\n\n -------------- node $(node.num) ")
 
     # get the actual node
     @assert node.activated == true "the actual node is not activated "
@@ -243,7 +243,7 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
     # calculate the lower bound set 
     if computeLBS(node, model, algorithm, Bounds)
         prune!(node, INFEASIBILITY) ; algorithm.pruned_nodes += 1
-        # println(node)
+        println(node)
         return
         nothing
     end
@@ -251,7 +251,7 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
     # update the upper bound set 
     if updateUBS(node, UBS)
         prune!(node, INTEGRITY) ; algorithm.pruned_nodes += 1 
-        # println(node)
+        println(node)
         return 
         nothing
     end 
@@ -260,7 +260,7 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
     # test dominance 
     if fullyExplicitDominanceTest(node, UBS, model)
         prune!(node, DOMINANCE) ; algorithm.pruned_nodes += 1
-        # println(node)
+        println(node)
         return
         nothing
     end
@@ -277,7 +277,7 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
         push!(node.succs, child)
     end
 
-    # println(node)
+    println(node)
 end
 
 # -------------------------------------
@@ -339,7 +339,7 @@ function optimize_multiobjective!(
     end
     
     vars_idx = MOI.get(model, MOI.ListOfVariableIndices())
-    # todo : tol rounding 
+
     return status, [SolutionPoint(
                                     Dict(vars_idx[i] => first(sol.x)[i] for i in 1:length(vars_idx) ) , sol.y
                     ) 
