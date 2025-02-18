@@ -63,7 +63,7 @@ end
 
 function heuristic(model::Optimizer, UBS::Vector{SupportedSolutionPoint}, algorithm::MultiObjectiveBranchBound)
     start_time = time()
-    p = MOI.output_dimension(model.f) ; Λ = []
+    p = MOI.output_dimension(model.f) ; Λ = Set{Vector{Float64}}()
     for i in 1:p
         λ = zeros(p) ; λ[i] = 1.0
         push!(Λ, λ) 
@@ -71,7 +71,7 @@ function heuristic(model::Optimizer, UBS::Vector{SupportedSolutionPoint}, algori
     λ = [1/p for _ in 1:p] ; push!(Λ, λ)
     
     for i in 1:p
-        λ_ = (λ .+ Λ[i]) ./2 ; push!(Λ, λ_) 
+        λ_ = (λ .+ collect(Λ)[i]) ./2 ; push!(Λ, λ_) 
     end
 
     λ_count = 2*( p * algorithm.nb_vars/5 )
@@ -79,7 +79,7 @@ function heuristic(model::Optimizer, UBS::Vector{SupportedSolutionPoint}, algori
     while λ_count > 0
         i = rand(1:length(Λ)) ; j = rand(1:length(Λ))
         if i != j
-            λ_ = (Λ[j] + Λ[i]) ./2
+            λ_ = (collect(Λ)[j] + collect(Λ)[i]) ./2
             push!(Λ, λ_) ; λ_count -= 1
         end
     end

@@ -393,15 +393,21 @@ function MOLP(algorithm,
     iter = 0
     for λ in Λ
         iter += 1
-        # status, x, y = solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff)
+        status, x, y = solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff)
 
         # if status==OPTIMAL println("λ = ", λ , "\t qcr value = ", λ'*y ) end 
-        println("λ ", λ)
+        # println("λ ", λ)
 
-        status, x, y = column_generation_algorithm(model, algorithm, sum( λ[i].* node.qcr_coeff.Q[i] for i in 1:p), 
-                                        sum( λ[i].* node.qcr_coeff.c[i] for i in 1:p ), λ'* node.qcr_coeff.constant, 
-                                        sum( λ[i].* algorithm.Qs[i] for i in 1:p)
-                                    )
+        # status, x, y = column_generation_algorithm(model, algorithm, sum( λ[i].* node.qcr_coeff.Q[i] for i in 1:p), 
+        #                                 sum( λ[i].* node.qcr_coeff.c[i] for i in 1:p ), λ'* node.qcr_coeff.constant, 
+        #                                 sum( λ[i].* algorithm.Qs[i] for i in 1:p)
+        #                             )
+
+        # Q, c, constant = QCR_independent(sum( λ[i].* algorithm.Qs[i] for i in 1:p), model, algorithm)
+        # if Q === nothing return end 
+        # status, x, y = column_generation_algorithm(model, algorithm, Q, c, constant, 
+        #                                 sum( λ[i].* algorithm.Qs[i] for i in 1:p)
+        #                             )
 
         # if status==OPTIMAL println("DWR value = ", λ'*y) end 
 
@@ -482,7 +488,7 @@ function updateUBS(node::Node, UBS::Vector{SupportedSolutionPoint})::Bool
             end
         end
     end
-    println("UBS = ", UBS)
+    # println("UBS = ", UBS)
 
     return integrity
 end
