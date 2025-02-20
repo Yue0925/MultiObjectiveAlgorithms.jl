@@ -179,7 +179,7 @@ end
 """
 From the actual node, go up to the root to get the partial assignment of variables.
 """
-function getPartialAssign(actual::Node)::Dict{MOI.VariableIndex, Float64} 
+function getPartialAssign(actual::Node)::Dict{MOI.VariableIndex, Float64}
     assignment = Dict{MOI.VariableIndex, Float64}()
     if isRoot(actual) # the actual node is the root 
         return assignment
@@ -378,7 +378,8 @@ function MOLP(algorithm,
         λ = zeros(p) ; λ[i] = 1.0
         push!(Λ, λ) 
 
-        if MOI.get(algorithm, ConvexQCR())
+        # if no preprocessing  
+        if MOI.get(algorithm, ConvexQCR()) && MOI.get(algorithm, Preproc()) == 0
             is_solved = QCR_csdp(algorithm.Qs[i], zeros(algorithm.nb_vars), 0.0, 
                                     model, algorithm, node.qcr_coeff
                         )
@@ -393,7 +394,9 @@ function MOLP(algorithm,
     iter = 0
     for λ in Λ
         iter += 1
-        status, x, y = solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff)
+        status, x, y = MOI.get(algorithm, Preproc()) == 0 ? 
+                            solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff) :
+                            klevel_solve_weighted_sum(node.depth, node, model, λ, algorithm)
 
         # if status==OPTIMAL println("λ = ", λ , "\t qcr value = ", λ'*y ) end 
         # println("λ ", λ)
@@ -420,13 +423,7 @@ function MOLP(algorithm,
                 sol.x = Set( [x_val])
                 sol.y = [ x_val'* algorithm.Qs[i] *x_val for i in 1:p]
             end
-            # if any(test -> test ≈ sol, node.lower_bound_set)
-            #     nothing
-            # else
-            #     is_new_point = push_avoiding_duplicate(node.lower_bound_set, sol)
-            #     if !is_new_point return end
-            # end
-
+       
             push_filtering_dominance(node.lower_bound_set, sol)
         end
         if iter==2 && length(node.lower_bound_set) < iter return end  

@@ -401,6 +401,19 @@ default(::ConvexQCR) = false
 
 
 """
+    Preproc <: AbstractAlgorithmAttribute -> Int64
+
+ whether preprocessing choice.
+
+# Defaults to `0`.
+
+"""
+struct Preproc <: AbstractAlgorithmAttribute end
+
+default(::Preproc) = 0
+
+
+"""
     PrunedNodeCount <: AbstractAlgorithmAttribute -> Int64
 
 total pruned nodes.
@@ -515,6 +528,18 @@ total pruned nodes.
 struct Biq <: AbstractAlgorithmAttribute end
 
 default(::Biq) = Vector{Float64}()
+
+
+"""
+    PreprocMu <: AbstractAlgorithmAttribute -> Vector{Vector{Vector{Float64}}}()
+
+
+# Defaults to `Vector{Vector{Vector{Float64}}}()`.
+
+"""
+struct PreprocMu <: AbstractAlgorithmAttribute end
+
+default(::PreprocMu) = Vector{Vector{Vector{Float64}}}()
 
 
 

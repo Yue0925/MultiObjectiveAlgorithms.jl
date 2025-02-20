@@ -87,9 +87,9 @@ function heuristic(model::Optimizer, UBS::Vector{SupportedSolutionPoint}, algori
     # calculate mono 
     # sols = Set()
     for λ in Λ
-        println("heur λ = ", λ)
+        # println("heur λ = ", λ)
         x = invokeSOheuristic(λ, model, algorithm)
-        println("sol heur = ", [x'*algorithm.Qs[k]'*x for k in 1:p])
+        # println("sol heur = ", [x'*algorithm.Qs[k]'*x for k in 1:p])
 
         push_filtering_dominance(UBS, SupportedSolutionPoint(Set([x]),
                                                              [x'*algorithm.Qs[k]'*x for k in 1:p],

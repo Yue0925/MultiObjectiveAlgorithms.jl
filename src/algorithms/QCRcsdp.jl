@@ -77,7 +77,7 @@ function QCR_csdp(Q, c, constant, model,
         return true
 
     elseif termination_status(model_sdp) == MOI.ITERATION_LIMIT
-            @warn("CSDP solver 100 iter limit reached ! ")
+            @warn("CSDP solver 200 iter limit reached ! ")
     end
 
     return false
@@ -93,12 +93,14 @@ function solve_weighted_sum(
     λ::Vector{Float64},
     QCR::Bool,
     qcr_coeff::QCRcoefficients
-) 
+    ) 
 
     varArray = MOI.get(model.inner, MOI.ListOfVariableIndices())
     N = length(varArray)
     varIndex = Dict(varArray[i] => i for i=1:N)
 
+    # --------------------------------------------
+    # -- by defaut 
     if !QCR 
         f = _scalarise(model.f, λ)
         MOI.set(model.inner, MOI.ObjectiveFunction{typeof(f)}(), f)
@@ -118,6 +120,8 @@ function solve_weighted_sum(
         return status, sol, Y
     end    
 
+    # ----------------------------------------------
+    # -- weighted sum of convexde coefficients
     Q = sum( λ[p].* qcr_coeff.Q[p] for p in 1:length(λ))
     c = sum( λ[p].* qcr_coeff.c[p] for p in 1:length(λ) )
     constant = λ'* qcr_coeff.constant

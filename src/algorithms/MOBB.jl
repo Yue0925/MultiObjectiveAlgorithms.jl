@@ -22,6 +22,7 @@ mutable struct MultiObjectiveBranchBound <: AbstractAlgorithm
     tolerance :: Union{Nothing, Float64}                    # numerical tolerance
     convex_qcr :: Union{Nothing, Bool}                      # QCR convexification parameter 
     heuristic :: Union{Nothing, Bool}
+    preproc :: Union{Nothing, Int64}                        # preprocessing choice 0, 1, 2
 
     # --------------- informations for getting attributes 
     pruned_nodes :: Union{Nothing, Int64}
@@ -34,9 +35,12 @@ mutable struct MultiObjectiveBranchBound <: AbstractAlgorithm
     b_eq :: Union{Nothing, Vector{Float64}}
     b_iq :: Union{Nothing, Vector{Float64}}
 
-    MultiObjectiveBranchBound() = new(nothing, nothing, nothing, nothing, nothing,
+    preproc_μ :: Union{Nothing, Vector{Vector{Vector{Float64}}}} # ∀ p obj, ∀ levels, μ
+
+    MultiObjectiveBranchBound() = new(nothing, nothing, nothing, nothing, nothing, nothing,
                                       nothing, nothing, 
-                                      nothing, nothing, nothing, nothing, nothing, nothing
+                                      nothing, nothing, nothing, nothing, nothing, nothing,
+                                      nothing
                                 )
 end
 
@@ -97,6 +101,16 @@ function MOI.get(alg::MultiObjectiveBranchBound, attr::ConvexQCR)
     return something(alg.convex_qcr, default(alg, attr))
 end
 
+MOI.supports(::MultiObjectiveBranchBound, ::Preproc) = true
+
+function MOI.set(alg::MultiObjectiveBranchBound, ::Preproc, value)
+    alg.preproc = value ; return
+end
+
+function MOI.get(alg::MultiObjectiveBranchBound, attr::Preproc)
+    return something(alg.preproc, default(alg, attr))
+end
+
 # --------- attributes only for getting 
 MOI.supports(::MultiObjectiveBranchBound, ::PrunedNodeCount) = true
 
@@ -147,6 +161,13 @@ MOI.supports(::MultiObjectiveBranchBound, ::Biq) = true
 function MOI.get(alg::MultiObjectiveBranchBound, attr::Biq)
     return something(alg.b_iq, default(alg, attr))
 end
+
+MOI.supports(::MultiObjectiveBranchBound, ::PreprocMu) = true
+
+function MOI.get(alg::MultiObjectiveBranchBound, attr::PreprocMu)
+    return something(alg.preproc_μ, default(alg, attr))
+end
+
 
 """
     Load coefficients matrices of the model. 
@@ -230,6 +251,25 @@ function relaxVariables(model::Optimizer) :: Vector{Dict{MOI.VariableIndex, MOI.
 end
 
 
+function _preprocessing_UQCR(model, algorithm::MultiObjectiveBranchBound)
+    p = MOI.output_dimension(model.f) ; algorithm.preproc_μ = Vector{Vector{Vector{Float64}}}()
+
+    # level 0 (all vars are free)
+    for p_ in 1:p
+        μ = klevel_UQCR_csdp(algorithm.nb_vars, algorithm.Qs[p_])
+        if μ === nothing @error("UQCR error in preprocessing at level 0 for objective $p_ ! ") end 
+        push!(algorithm.preproc_μ, [μ])
+    end
+
+    for k in 1:algorithm.nb_vars-1
+        for p_ in 1:p
+            μ = klevel_UQCR_csdp(algorithm.nb_vars - k, algorithm.Qs[p_][k+1:end, k+1:end])
+            if μ === nothing @error("UQCR error in preprocessing at level $k for objective $p_ ! ") end 
+            push!(algorithm.preproc_μ[p_], μ)
+        end
+    end
+end
+
 function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Vector{Dict{MOI.VariableIndex, MOI.ConstraintIndex}},
             tree, node::Node, UBS::Vector{SupportedSolutionPoint}
 )
@@ -238,7 +278,7 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
 
     # get the actual node
     @assert node.activated == true "the actual node is not activated "
-    node.activated = false
+    node.activated = false ;  node.assignment = getPartialAssign(node)
 
     # calculate the lower bound set 
     if computeLBS(node, model, algorithm, Bounds)
@@ -265,8 +305,13 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
         nothing
     end
 
+
+    # todo :: for k-item knapsack instance only 
+    if sum(collect(values(node.assignment))) >= algorithm.b_eq[1] return end 
+
+
     # otherwise this node is not fathomed, continue to branch on free variable
-    assignment = getPartialAssign(node) ; var = pickUpAFreeVar(assignment, model)
+    var = pickUpAFreeVar(node.assignment, model)
     if var === nothing return end
 
     children =[ Node(model.total_nodes + 1, node.depth + 1, pred = node, var_idx = var, var_bound = 1.0, bound_type = 2),
@@ -291,6 +336,7 @@ function optimize_multiobjective!(
 )
     model.total_nodes = 0 ; algorithm.pruned_nodes = 0
     start_time = time()
+
     # step1 - set tolerance to inner model 
     if MOI.get(algorithm, Tolerance()) != default(algorithm, Tolerance())
         MOI.set(model, MOI.RawOptimizerAttribute("tol_inconsistent"), MOI.get(algorithm, Tolerance()))
@@ -307,13 +353,18 @@ function optimize_multiobjective!(
     
     _loadMatrices(algorithm, model)
 
-    # step4 - initialization
+    # preprocessing phase
+    if MOI.get(algorithm, Preproc()) > 0
+        _preprocessing_UQCR(model, algorithm)
+    end
+    
+    # step4 - initialization UBS
     UBS = Vector{SupportedSolutionPoint}()
     # global heuristic 
     if MOI.get(algorithm, Heuristic())
         algorithm.heuristic_time = heuristic(model, UBS, algorithm)
     end
-    println("UBS = ", UBS)
+    # println("UBS = ", UBS)
 
      
     tree = initTree(algorithm)
