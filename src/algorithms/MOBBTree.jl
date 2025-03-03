@@ -378,9 +378,9 @@ function MOLP(algorithm,
         λ = zeros(p) ; λ[i] = 1.0
         push!(Λ, λ) 
 
-        # if no preprocessing  
+        # if no preprocessing 
         if MOI.get(algorithm, ConvexQCR()) && MOI.get(algorithm, Preproc()) == 0  # isRoot(node)   && 
-            is_solved = QCR_csdp(algorithm.Qs[i], zeros(algorithm.nb_vars), 0.0, 
+            is_solved = QCR_csdp(algorithm.Qs[i], algorithm.Ls[i], algorithm.Cs[i], 
                                     model, algorithm, node.qcr_coeff
                         )
             is_solved ? nothing : return
@@ -421,7 +421,7 @@ function MOLP(algorithm,
             if sol.is_integer
                 x_val = round.(Int64, first(sol.x)) .*1.0
                 sol.x = Set( [x_val])
-                sol.y = [ x_val'* algorithm.Qs[i] *x_val for i in 1:p]
+                sol.y = [ x_val'* algorithm.Qs[i] *x_val + x_val'* algorithm.Ls[i] + algorithm.Cs[i] for i in 1:p]
             end
        
             push_filtering_dominance(node.lower_bound_set, sol)

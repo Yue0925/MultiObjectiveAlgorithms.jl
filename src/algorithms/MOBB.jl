@@ -30,6 +30,8 @@ mutable struct MultiObjectiveBranchBound <: AbstractAlgorithm
 
     nb_vars :: Union{Nothing, Int64}
     Qs :: Union{Nothing, Vector{Matrix{Float64}}}
+    Ls :: Union{Nothing, Vector{Vector{Float64}}}
+    Cs :: Union{Nothing, Vector{Float64}}
     A_eq :: Union{Nothing, Matrix{Float64}}
     A_iq :: Union{Nothing, Matrix{Float64}}
     b_eq :: Union{Nothing, Vector{Float64}}
@@ -39,7 +41,7 @@ mutable struct MultiObjectiveBranchBound <: AbstractAlgorithm
 
     MultiObjectiveBranchBound() = new(nothing, nothing, nothing, nothing, nothing, nothing,
                                       nothing, nothing, 
-                                      nothing, nothing, nothing, nothing, nothing, nothing,
+                                      nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, 
                                       nothing
                                 )
 end
@@ -138,6 +140,19 @@ function MOI.get(alg::MultiObjectiveBranchBound, attr::QObj)
     return something(alg.Qs, default(alg, attr))
 end
 
+MOI.supports(::MultiObjectiveBranchBound, ::LObj) = true
+
+function MOI.get(alg::MultiObjectiveBranchBound, attr::LObj)
+    return something(alg.Ls, default(alg, attr))
+end
+
+MOI.supports(::MultiObjectiveBranchBound, ::CObj) = true
+
+function MOI.get(alg::MultiObjectiveBranchBound, attr::CObj)
+    return something(alg.Cs, default(alg, attr))
+end
+
+
 MOI.supports(::MultiObjectiveBranchBound, ::Aeq) = true
 
 function MOI.get(alg::MultiObjectiveBranchBound, attr::Aeq)
@@ -179,15 +194,23 @@ function _loadMatrices(algorithm::MultiObjectiveBranchBound, model::Optimizer)
 
     # read objective Qs # todo : only for multiple quadratic functions !! 
     if typeof(model.f) == MOI.VectorQuadraticFunction{Float64}
-        algorithm.Qs = Vector{Matrix{Float64}}()
+        algorithm.Qs = Vector{Matrix{Float64}}() ; algorithm.Ls = Vector{Vector{Float64}}() ; algorithm.Cs = Vector{Float64}()
         for _ in 1:MOI.output_dimension(model.f) 
-            push!(algorithm.Qs, zeros(N, N) )
+            push!(algorithm.Qs, zeros(N, N) ) ; push!(algorithm.Ls, zeros(N)) ; push!(algorithm.Cs, 0.0)
         end
 
         for term in model.f.quadratic_terms
             i = varIndex[term.scalar_term.variable_1 ]; j = varIndex[term.scalar_term.variable_2 ]
             algorithm.Qs[term.output_index][i, j] = i==j ? term.scalar_term.coefficient/2 : term.scalar_term.coefficient
         end
+
+        for term in model.f.affine_terms
+            i = varIndex[term.scalar_term.variable ] 
+            algorithm.Ls[term.output_index][i] = term.scalar_term.coefficient
+        end
+
+        algorithm.Cs = model.f.constants
+          
     end
 
     # read constraints ax=b     # todo :  VectorAffineFunction case 
@@ -288,9 +311,9 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
         nothing
     end
 
-    if isRoot(node)
-        println("root LBS : ", node.lower_bound_set)
-    end
+    # if isRoot(node)
+    #     println("root LBS : ", node.lower_bound_set)
+    # end
     # update the upper bound set 
     if updateUBS(node, UBS)
         prune!(node, INTEGRITY) ; algorithm.pruned_nodes += 1 
@@ -310,7 +333,7 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
 
 
     # todo :: for k-item knapsack instance only 
-    if sum(collect(values(node.assignment))) >= algorithm.b_eq[1] return end 
+    if length(algorithm.b_eq)>0 && sum(collect(values(node.assignment))) >= algorithm.b_eq[1] return end 
 
 
     # otherwise this node is not fathomed, continue to branch on free variable
@@ -360,7 +383,7 @@ function optimize_multiobjective!(
     if MOI.get(algorithm, Preproc()) > 0
         _preprocessing_UQCR(model, algorithm)
     end
-    
+
     # step4 - initialization UBS
     UBS = Vector{SupportedSolutionPoint}()
     # global heuristic 

@@ -480,6 +480,35 @@ default(::QObj) = Vector{Matrix{Float64}}()
 
 
 """
+    LObj <: AbstractAlgorithmAttribute -> Vector{Vector{Float64}}
+
+total pruned nodes.
+
+# Defaults to `Vector{Vector{Float64}}()`.
+
+"""
+struct LObj <: AbstractAlgorithmAttribute end
+
+default(::LObj) = Vector{Vector{Float64}}()
+
+
+
+
+"""
+    CObj <: AbstractAlgorithmAttribute -> Vector{Float64}
+
+total pruned nodes.
+
+# Defaults to `Vector{Float64}()`.
+
+"""
+struct CObj <: AbstractAlgorithmAttribute end
+
+default(::CObj) = Vector{Float64}()
+
+
+
+"""
     Aeq <: AbstractAlgorithmAttribute -> Matrix{Float64}
 
 total pruned nodes.

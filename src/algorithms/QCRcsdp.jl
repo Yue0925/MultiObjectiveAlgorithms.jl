@@ -36,26 +36,39 @@ function QCR_csdp(Q, c, constant, model,
     M = length(algorithm.b_eq)
 
     @objective(model_sdp, Min, tr(Q * X)+ c'*x + constant  ) 
-    @constraint(model_sdp, algorithm.A_eq *x == algorithm.b_eq) 
-    @constraint(model_sdp, algorithm.A_iq *x <= algorithm.b_iq) 
+    length(algorithm.b_eq) > 0 ? @constraint(model_sdp, algorithm.A_eq *x == algorithm.b_eq) : nothing
+    length(algorithm.b_iq) > 0 ? @constraint(model_sdp, algorithm.A_iq *x <= algorithm.b_iq) : nothing
 
     con_μ = @constraint(model_sdp, [i in 1:N], X[i,i] - x[i] == 0)
-    con_β = @constraint(model_sdp, sum( sum(algorithm.A_eq[k,i] * algorithm.A_eq[k,j]*X[i,j] for i in 1:N for j in 1:N) - 
-                                    2 * sum(algorithm.b_eq[k] * algorithm.A_eq[k,j] * x[j] for j in 1:N) +
-                                    algorithm.b_eq[k]^2  for k in 1:M
-                                ) == 0 
-            ) 
+
+    con_β = nothing
+    if length(algorithm.b_eq) > 0 
+        con_β = @constraint(model_sdp, sum( sum(algorithm.A_eq[k,i] * algorithm.A_eq[k,j]*X[i,j] for i in 1:N for j in 1:N) - 
+                                        2 * sum(algorithm.b_eq[k] * algorithm.A_eq[k,j] * x[j] for j in 1:N) +
+                                        algorithm.b_eq[k]^2  for k in 1:M
+                                    ) == 0 
+                ) 
+    end
 
     optimize!(model_sdp)
 
     if termination_status(model_sdp)== OPTIMAL
         μ = dual.(con_μ)
-        β = dual(con_β)
 
-        @expression(model_sdp, newf, x'*Q*x + c'*x + constant +
-                                sum((-μ[i])* (x[i]^2 - x[i]) for i in 1:N) -
-                                β * sum( (algorithm.A_eq[k, :]'*x - algorithm.b_eq[k] )^2 for k in 1:M)
-        )
+        if length(algorithm.b_eq) > 0 
+            β = dual(con_β)
+
+            @expression(model_sdp, newf, x'*Q*x + c'*x + constant +
+                                    sum((-μ[i])* (x[i]^2 - x[i]) for i in 1:N) -
+                                    β * sum( (algorithm.A_eq[k, :]'*x - algorithm.b_eq[k] )^2 for k in 1:M)
+            )
+        else
+            @expression(model_sdp, newf, x'*Q*x + c'*x + constant +
+                                    sum((-μ[i])* (x[i]^2 - x[i]) for i in 1:N)
+            )
+        end
+
+
         Q = zeros(N, N) ; c = zeros(N) ; constant = newf.aff.constant
 
         for (p, v) in newf.terms
@@ -86,7 +99,7 @@ end
 
 
 """
-x'*Q*x + c'*x 
+x'*Q*x + c'*x +constant
 """
 function solve_weighted_sum(
     model::Optimizer,
