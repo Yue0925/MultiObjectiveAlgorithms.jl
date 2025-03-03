@@ -256,14 +256,14 @@ function _preprocessing_UQCR(model, algorithm::MultiObjectiveBranchBound)
 
     # level 0 (all vars are free)
     for p_ in 1:p
-        μ = klevel_UQCR_csdp(algorithm.nb_vars, algorithm.Qs[p_])
+        μ = klevel_UQCR_csdp(algorithm.nb_vars, algorithm.Qs[p_], 0, algorithm)
         if μ === nothing @error("UQCR error in preprocessing at level 0 for objective $p_ ! ") end 
         push!(algorithm.preproc_μ, [μ])
     end
 
     for k in 1:algorithm.nb_vars-1
         for p_ in 1:p
-            μ = klevel_UQCR_csdp(algorithm.nb_vars - k, algorithm.Qs[p_][k+1:end, k+1:end])
+            μ = klevel_UQCR_csdp(algorithm.nb_vars - k, algorithm.Qs[p_][k+1:end, k+1:end], k, algorithm)
             if μ === nothing @error("UQCR error in preprocessing at level $k for objective $p_ ! ") end 
             push!(algorithm.preproc_μ[p_], μ)
         end
@@ -288,6 +288,9 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
         nothing
     end
 
+    if isRoot(node)
+        println("root LBS : ", node.lower_bound_set)
+    end
     # update the upper bound set 
     if updateUBS(node, UBS)
         prune!(node, INTEGRITY) ; algorithm.pruned_nodes += 1 

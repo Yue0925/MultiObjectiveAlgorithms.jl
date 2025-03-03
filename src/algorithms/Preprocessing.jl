@@ -10,7 +10,7 @@ For each level k ∈[0,n-1], convexify the ∑₍ᵢ₌ₖ₊₁₎ ∑₍ⱼ₌
 
 return μ or nothing in case of failure. 
 """
-function klevel_UQCR_csdp(N::Int64, Q::Matrix{Float64} )
+function klevel_UQCR_csdp(N::Int64, Q::Matrix{Float64}, k::Int64, algorithm::MultiObjectiveBranchBound )
 
     # SDP model ...
     model_sdp = Model(CSDP.Optimizer) ; JuMP.set_silent(model_sdp) 
@@ -24,6 +24,11 @@ function klevel_UQCR_csdp(N::Int64, Q::Matrix{Float64} )
     @objective(model_sdp, Min, tr(Q * X) )
     
     con_μ = @constraint(model_sdp, [i in 1:N], X[i,i] - x[i] == 0)
+
+    # --------------------------
+    # todo : relaxed ctr 
+    @constraint(model_sdp, algorithm.A_iq[:, k+1:end]* x ≤ algorithm.b_iq )
+    @constraint(model_sdp, algorithm.A_eq[:, k+1:end]* x ≤ algorithm.b_eq )
 
     optimize!(model_sdp)
 
