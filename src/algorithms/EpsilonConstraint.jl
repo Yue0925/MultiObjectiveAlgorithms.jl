@@ -123,7 +123,7 @@ function optimize_multiobjective!(
         if !_is_scalar_status_optimal(model)
             break
         end
-        X, Y = _compute_point(model, variables, model.f)
+        X, Y = _compute_point_integer(model, variables, model.f)
         if isempty(solutions) || !(Y ≈ solutions[end].y)
             push!(solutions, SolutionPoint(X, Y))
         end

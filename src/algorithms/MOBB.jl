@@ -294,7 +294,7 @@ function _preprocessing_UQCR(model, algorithm::MultiObjectiveBranchBound)
 end
 
 function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Vector{Dict{MOI.VariableIndex, MOI.ConstraintIndex}},
-            tree, node::Node, UBS::Vector{SupportedSolutionPoint}, LBS::Vector{SupportedSolutionPoint}
+            tree, node::Node, UBS::Vector{SupportedSolutionPoint}#, LBS::Vector{SupportedSolutionPoint}
 )
 
     # println("\n\n -------------- node $(node.num) ")
@@ -444,8 +444,8 @@ function optimize_multiobjective!(
     end
     # println("UBS = ", UBS)
 
-    # todo : 
-    LBS = Vector{SupportedSolutionPoint}()
+    # # todo : 
+    # LBS = Vector{SupportedSolutionPoint}()
 
      
     tree = initTree(algorithm)
@@ -463,7 +463,7 @@ function optimize_multiobjective!(
 
         node_ref = nextNodeTree(tree, algorithm)
 
-        MOBB(algorithm, model, Bounds, tree, node_ref[], UBS, LBS)
+        MOBB(algorithm, model, Bounds, tree, node_ref[], UBS)
         
         if node_ref[].deleted
             finalize(node_ref[])

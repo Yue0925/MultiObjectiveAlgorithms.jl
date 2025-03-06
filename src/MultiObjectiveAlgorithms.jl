@@ -851,6 +851,17 @@ function _compute_point(
     Y = MOI.Utilities.eval_variables(Base.Fix1(getindex, X), model, f)
     return X, Y
 end
+function _compute_point_integer(
+    model::Optimizer,
+    variables::Vector{MOI.VariableIndex},
+    f,
+)
+    X = Dict{MOI.VariableIndex,Float64}(
+        x => 1.0 * round(Int64, MOI.get(model.inner, MOI.VariablePrimal(), x) ) for x in variables
+    )
+    Y = MOI.Utilities.eval_variables(Base.Fix1(getindex, X), model, f)
+    return X, Y
+end
 
 function _is_scalar_status_feasible_point(status::MOI.ResultStatusCode)
     return status == MOI.FEASIBLE_POINT

@@ -379,7 +379,7 @@ function MOLP(algorithm,
         push!(Λ, λ) 
 
         # if no preprocessing 
-        if MOI.get(algorithm, ConvexQCR()) && isRoot(node)  #    && MOI.get(algorithm, Preproc()) == 0 
+        if MOI.get(algorithm, ConvexQCR()) && MOI.get(algorithm, Preproc()) == 0   #    && isRoot(node)     MOI.get(algorithm, Preproc()) == 0
             is_solved = QCR_csdp(algorithm.Qs[i], algorithm.Ls[i], algorithm.Cs[i], 
                                     model, algorithm, node.qcr_coeff
                         )
@@ -393,8 +393,8 @@ function MOLP(algorithm,
 
     iter = 0
     for λ in Λ
-        iter += 1   #isRoot(node)    MOI.get(algorithm, Preproc()) == 0 
-        status, x, y = isRoot(node) ? 
+        iter += 1   #isRoot(node)     MOI.get(algorithm, Preproc()) == 0
+        status, x, y = MOI.get(algorithm, Preproc()) == 0 ? 
                             solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff) :
                             klevel_solve_weighted_sum(node.depth, node, model, λ, algorithm)
 
