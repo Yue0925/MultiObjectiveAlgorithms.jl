@@ -294,7 +294,7 @@ function _preprocessing_UQCR(model, algorithm::MultiObjectiveBranchBound)
 end
 
 function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Vector{Dict{MOI.VariableIndex, MOI.ConstraintIndex}},
-            tree, node::Node, UBS::Vector{SupportedSolutionPoint}
+            tree, node::Node, UBS::Vector{SupportedSolutionPoint}, LBS::Vector{SupportedSolutionPoint}
 )
 
     # println("\n\n -------------- node $(node.num) ")
@@ -311,9 +311,31 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
         nothing
     end
 
-    # if isRoot(node)
-    #     println("root LBS : ", node.lower_bound_set)
+    # if node.depth <= algorithm.nb_vars/2 # !isRoot(node) && node.var_bound == 1.0 # && 
+    #     # before = length(UBS)
+    #     # varArray = MOI.get(model, MOI.ListOfVariableIndices())
+    #     # varidx = Dict(varArray[i] => i for i in 1:algorithm.nb_vars)
+    #     # algorithm.heuristic_time += heuristic_local(model, UBS, algorithm, node.assignment, varidx)
+    #     # # println("UBS changed ", length(UBS) - before)
+
+    #     start = time()
+    #     p = MOI.output_dimension(model.f)
+    #     for sol in node.lower_bound_set
+    #         if !sol.is_integer
+    #             x = [ v>0.9 ? 1 : 0 for v in first(sol.x)]
+    #             if sum(x) == algorithm.b_eq[1] && x'* algorithm.A_iq[1, :] < algorithm.b_iq[1]
+    #                 push_filtering_dominance(UBS, SupportedSolutionPoint(Set([x]),
+    #                                                     [x'*algorithm.Qs[k]'*x + x'*algorithm.Ls[k] + algorithm.Cs[k] for k in 1:p],
+    #                                                     sol.λ, true
+    #                                     ) 
+    #                 )
+    #             end
+    #         end
+    #     end
+    #     algorithm.heuristic_time += time() - start
+
     # end
+    
     # update the upper bound set 
     if updateUBS(node, UBS)
         prune!(node, INTEGRITY) ; algorithm.pruned_nodes += 1 
@@ -321,10 +343,40 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
         return 
         nothing
     end 
-    
+   
+    # newLBS = Vector{SupportedSolutionPoint}()
 
+    # # todo : global LBS
+    # if isRoot(node)
+    #     LBS = node.lower_bound_set[:]
+    #     newLBS = node.lower_bound_set
+    # else
+        
+    #     for p in node.lower_bound_set
+    #         dominated = true 
+    #         for l in LBS
+    #             if p.y'*l.λ >= l.y'*l.λ
+    #                 dominated = false ; break
+    #             end
+    #         end
+
+    #         if !dominated push!(newLBS, p) end 
+    #     end
+
+    #     for l in LBS
+    #         dominated = true 
+    #         for p in node.lower_bound_set
+    #             if l.y'*p.λ >= p.y'*p.λ
+    #                 dominated = false ; break
+    #             end
+    #         end
+    #         if !dominated push!(newLBS, l) end 
+
+    #     end
+    # end
+    
     # test dominance 
-    if fullyExplicitDominanceTest(node, UBS, model)
+    if fullyExplicitDominanceTest(node.lower_bound_set, UBS, model)
         prune!(node, DOMINANCE) ; algorithm.pruned_nodes += 1
         # println(node)
         return
@@ -392,6 +444,9 @@ function optimize_multiobjective!(
     end
     # println("UBS = ", UBS)
 
+    # todo : 
+    LBS = Vector{SupportedSolutionPoint}()
+
      
     tree = initTree(algorithm)
     model.total_nodes += 1 ; root = Node(model.total_nodes, 0)
@@ -408,7 +463,7 @@ function optimize_multiobjective!(
 
         node_ref = nextNodeTree(tree, algorithm)
 
-        MOBB(algorithm, model, Bounds, tree, node_ref[], UBS)
+        MOBB(algorithm, model, Bounds, tree, node_ref[], UBS, LBS)
         
         if node_ref[].deleted
             finalize(node_ref[])

@@ -379,7 +379,7 @@ function MOLP(algorithm,
         push!(Λ, λ) 
 
         # if no preprocessing 
-        if MOI.get(algorithm, ConvexQCR()) && MOI.get(algorithm, Preproc()) == 0  # isRoot(node)   && 
+        if MOI.get(algorithm, ConvexQCR()) && isRoot(node)  #    && MOI.get(algorithm, Preproc()) == 0 
             is_solved = QCR_csdp(algorithm.Qs[i], algorithm.Ls[i], algorithm.Cs[i], 
                                     model, algorithm, node.qcr_coeff
                         )
@@ -393,8 +393,8 @@ function MOLP(algorithm,
 
     iter = 0
     for λ in Λ
-        iter += 1   #isRoot(node)    
-        status, x, y = MOI.get(algorithm, Preproc()) == 0 ? 
+        iter += 1   #isRoot(node)    MOI.get(algorithm, Preproc()) == 0 
+        status, x, y = isRoot(node) ? 
                             solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff) :
                             klevel_solve_weighted_sum(node.depth, node, model, λ, algorithm)
 
@@ -522,34 +522,34 @@ A fully explicit dominance test, and prune the given node if it's fathomed by do
 (i.e. ∀ l∈L: ∃ u∈U s.t. λu ≤ λl )
 Return `true` if the given node is fathomed by dominance.
 """
-function fullyExplicitDominanceTest(node::Node, UBS::Vector{SupportedSolutionPoint}, model)
+function fullyExplicitDominanceTest(lower_bound_set::Vector{SupportedSolutionPoint}, UBS::Vector{SupportedSolutionPoint}, model)
     # we can't compare the LBS and UBS if the incumbent set is empty
-    if length(UBS) == 0 || length(node.lower_bound_set)==0 return false end
+    if length(UBS) == 0 || length(lower_bound_set)==0 return false end
 
     p = MOI.output_dimension(model.f) ; nadir_pts = getNadirPoints(UBS, model)
 
     # ------------------------------------------
     # if the LBS consists of a single point
     # ------------------------------------------
-    if length(node.lower_bound_set) == 1
+    if length(lower_bound_set) == 1
         for u ∈ nadir_pts                   # if there exists an upper bound u s.t. u≦l
-            if dominates(u, node.lower_bound_set[1])
+            if dominates(u, lower_bound_set[1])
                 return true
             end
         end
         return false
     end
 
-    UBS_ideal = UBS[1].y[:] ; LBS_ideal = node.lower_bound_set[1].y[:]
+    UBS_ideal = UBS[1].y[:] ; LBS_ideal = lower_bound_set[1].y[:]
 
     for i in 2:length(UBS)
         for z in 1:p
             if UBS[i].y[z] < UBS_ideal[z] UBS_ideal[z] = UBS[i].y[z] end 
         end
     end
-    for i in 2:length(node.lower_bound_set)
+    for i in 2:length(lower_bound_set)
         for z in 1:p
-            if node.lower_bound_set[i].y[z] < LBS_ideal[z] LBS_ideal[z] = node.lower_bound_set[i].y[z] end 
+            if lower_bound_set[i].y[z] < LBS_ideal[z] LBS_ideal[z] = lower_bound_set[i].y[z] end 
         end
     end
     UBS_ideal_sp = SupportedSolutionPoint(Set{Vector{Float64}}(), UBS_ideal, Vector{Float64}(), false)
@@ -578,7 +578,7 @@ function fullyExplicitDominanceTest(node::Node, UBS::Vector{SupportedSolutionPoi
         end
 
         # case 3 : complete pairwise comparison
-        for l in node.lower_bound_set             # ∀ l ∈ LBS 
+        for l in lower_bound_set             # ∀ l ∈ LBS 
             if l.λ'*u.y < l.λ'*l.y         # todo : add TOL ? 
                 existence = true ; break
             end

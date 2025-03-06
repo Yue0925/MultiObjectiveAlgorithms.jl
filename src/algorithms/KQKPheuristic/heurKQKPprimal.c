@@ -66,6 +66,7 @@ itype ERREUR;
 FILE *trace;
 FILE *matq;
 FILE *matc;
+FILE *matl; // todo: add l.txt
 FILE *matA;
 FILE *matb;
 FILE *matAbis;
@@ -79,13 +80,17 @@ int checksolutionunit(int c, float z);
 void primalHeuristic(int *x, int N, double alpha);
 void roundingHeuristic(int * x, int N, double alpha);
 
+
+void load_data(int *n_) ; 
+
+
 /* ======================================================================
 				main
    ====================================================================== */
 
 int main(int argc, char *argv[])
 {
-  int n, r, pct, v, i, j, fix, k, l;//, z_H_Pri;
+  int r, pct, v, i, j, fix, k, l;//, z_H_Pri;
   float z, z_H_Sur;
   double time;
   FILE *sol;
@@ -94,44 +99,25 @@ int main(int argc, char *argv[])
   int fin=0;
   float zbest=0.0;
   int max_problem = 1; //1 if maximization, 0 if minimzation
-//  int heuristic_code = PRIMAL_HEUR; //PRIMAL_HEUR or ROUNDING_HEUR
+  int heuristic_code = PRIMAL_HEUR; //PRIMAL_HEUR or ROUNDING_HEUR
 //  int heuristic_code = ROUNDING_HEUR; //PRIMAL_HEUR or ROUNDING_HEUR
 
-  if (argc == 4) {
-    n = atoi(argv[1]); 
-    r = atoi(argv[2]);
-    pct = atoi(argv[3]);
-    fflush(NULL);
-    printf("\nQUADKNAP %d, %d, %d\n", n, r, pct);
-    fflush(NULL);
-  } else {
-    printf("quadknap\n");
-    printf("n = ");
-    scanf("%d", &n);
-    printf("r = ");
-    scanf("%d", &r);
-    printf("pct = ");
-    scanf("%d", &pct);
-  }
+  load_data(&n) ;
 
-//   trace = fopen("trace.c", "a");
-//  printf("\nINST: n: %d, r: %d, pct: %d\n", n, r, pct);
-  if (n > MSIZE) terminate_qkp("table too small");
-  for (v = 1; v <= TESTS; v++) {
-    if (max_problem) zbest = -1e9; else zbest = 1e9;
-    srand(v+n+r+pct);
-    maketest(n, r, pct);
-    printf("\nINST: n: %d, r: %d, pct: %d, v: %d \n", n, r, pct, v);
+
+  if (max_problem) zbest = -1e9; else zbest = 1e9;
+
 
     nbsolheur=0;
     for(l=0; l<NBSOL ; l++)
       for (i=0; i< n; i++)
         xsol[l][i]=0;
 
-//	switch (heuristic_code) {
+	switch (heuristic_code) {
 
 	// called at the beginning
-//	case PRIMAL_HEUR:
+	case PRIMAL_HEUR:
+    // printf("case 1 \n ") ; 
 
 		for (i = 0; i < 100; i++) {
 
@@ -142,17 +128,19 @@ int main(int argc, char *argv[])
 //			if (checksolutionunit(c,zbest) && 
 //				((max_problem && zbest < heur_val)
 //					|| (!max_problem && zbest > heur_val))) {
-        // todo : checksolutionunit
 			if (checksolutionunit(c,zbest) && zbest!= heur_val) {
-		        nbsolheur++;
+		    nbsolheur++;
 				zbest = heur_val;
 			}
 
 		}
 
-//		break;
+		break;
 
-//	case ROUNDING_HEUR:
+	case ROUNDING_HEUR:
+
+      // printf("case 2 \n "); 
+      /*
     
       matq = fopen("q.txt", "w");
       matc = fopen("c.txt", "w");
@@ -161,7 +149,7 @@ int main(int argc, char *argv[])
       matAbis = fopen("Abis.txt", "w");
       matbbis = fopen("bbis.txt", "w");
 
-      /* Ecriture dans q.txt*/
+      // Ecriture dans q.txt
       no_nul=(n*(n-1))/2;
       fprintf(matq,"%d %d\n",n,no_nul);
       for ( i=1;i<n;i++)
@@ -173,13 +161,13 @@ int main(int argc, char *argv[])
             fprintf(matq,"%f\n",-p[i-1][j-1]);
         }
 
-      /* Ecriture dans c.txt */
+      // Ecriture dans c.txt 
       fprintf(matc,"%d\n",1);
       for (i=1;i<n;i++)
         fprintf(matc,"%f\n",-p[i-1][i-1]);
       fprintf(matc,"%f ",-p[n-1][n-1]);
 
-      /* Ecriture dans A.txt*/
+      // Ecriture dans A.txt
       fprintf(matA,"%d\n",1);
       for (i=1;i<n;i++){
         fprintf(matA,"%d %d ",1,i);
@@ -188,10 +176,10 @@ int main(int argc, char *argv[])
       fprintf(matA,"%d %d ",1,n);
       fprintf(matA,"%d ",1);
 
-      /* Ecriture dans b.txt*/
+      // Ecriture dans b.txt
       fprintf(matb,"%d ",nbobj);
 
-      /* Ecriture dans Abis.txt*/
+      // Ecriture dans Abis.txt
       fprintf(matAbis,"%d\n",1);
       for (i=1;i<n;i++){
         fprintf(matAbis,"%d %d ",1,i);
@@ -200,7 +188,7 @@ int main(int argc, char *argv[])
       fprintf(matAbis,"%d %d ",1,n);
       fprintf(matAbis,"%d ",w[n-1]);
 
-      /* Ecriture dans bbis.txt*/
+      // Ecriture dans bbis.txt
       fprintf(matbbis,"%d ",c);
 
       fclose(matq);
@@ -273,23 +261,85 @@ int main(int argc, char *argv[])
 //			if (checksolutionunit(c,zbest) && 
 //				((max_problem && zbest < heur_val)
 //					|| (!max_problem && zbest > heur_val))
-//todo:
 			if (checksolutionunit(c,zbest) && zbest!= heur_val) {
 		        nbsolheur++;
 				zbest = heur_val;
 			}
 		}
-//		break;
 
-//	  default:
-//		printf("Choosen heuristic doesn't exist\n");
-//		exit(1);
-//	}
+    */
+		break;
+
+	  default:
+		printf("Choosen heuristic doesn't exist\n");
+		exit(1);
+	}
 
   checksolution(c,zbest);
- }
- return EXIT_SUCCESS;
+
+    // printf(" nbsolheur = %d \n", nbsolheur);
+
+    FILE* f = fopen("heur_sol.data", "w") ; 
+    fprintf(f, "%d \n", nbsolheur) ;
+
+    for (i = 0; i < nbsolheur; i++)
+    {
+      for (j = 0 ; j < n; j++ )
+        fprintf(f, "%d ", xsol[i][j]) ; 
+      fprintf(f, "\n") ;
+    }
+    
+    fclose(f) ; 
+
+
+    system("rm -f *.txt") ;
+    system("rm -f *.sb") ; 
+    system("rm -f *.sdpa") ; 
+    system("rm -f *.sol") ; 
+
+  return EXIT_SUCCESS;
 }  /* END main */
+
+
+
+void load_data(int *n_ ){
+  FILE *f = fopen("inst.data", "r") ; 
+  int l;
+  int i, j;
+  // read n
+  fscanf(f, "%d\n", n_) ;
+
+  // read matrix p
+  for(i=0; i< *n_; i++)
+    for(j=0; j< *n_; j++){
+      p[i][j] = 0.0 ;
+    }
+  
+  fscanf(f, "%d\n", &l) ;
+
+  for(int iter =0; iter<l; iter++){
+    float val;
+    fscanf(f, "%d %d %f\n", &i, &j, &val) ;
+    p[i-1][j-1] = val ;
+    p[j-1][i-1] = val; 
+  }
+
+
+  for(i = 0; i< *n_; i++){
+    int val ;
+    fscanf(f, "%d %d\n", &j, &val) ; 
+    w[j-1] = val;
+  }
+
+  // read capa
+  fscanf(f, "%d\n", &c) ;
+
+  // read k-item
+  fscanf(f, "%d\n", &nbobj) ;
+  fclose(f) ;
+}
+
+
 
 
 void primalHeuristic(int *x, int N, double alpha) {
@@ -310,9 +360,9 @@ void primalHeuristic(int *x, int N, double alpha) {
 	}
 }
 
-void roundingHeuristic(x, N, alpha)
-	int *x;int N; // Number of variables
-	double alpha; //
+void roundingHeuristic(int *x,int N, double alpha)
+//	int *x;int N; // Number of variables
+//	double alpha; //
 {
 	int i;
 
@@ -401,11 +451,11 @@ void checksolution(int c, float z)
       }
     }
 //    printf("CHECK %d: nbsolheur %d psum %f ksum %d \n", n, l, psum, ksum);
-    printf("%f \n", psum);
+    // printf("%f \n", psum);
     //if (ksum != nbobj) terminate_qkp("bad nb item");
     //if (psum != z) terminate_qkp("bad solution");
   }
-  printf("\n");
+  // printf("\n");
 // printf("CHECK %d: psum %f z %f wsum %d c %d ksum %d nbobj %d\n", n, psum,z,wsum,c,ksum,nbobj);
 // if (wsum > c) terminate_qkp("excess weight");
 }
@@ -443,7 +493,7 @@ int checksolutionunit(int c, float z)
 //  printf("\n");
 // printf("CHECK %d: psum %f z %f wsum %d c %d ksum %d nbobj %d\n", n, psum,z,wsum,c,ksum,nbobj);
 // if (wsum > c) terminate_qkp("excess weight");
-  if (ksum==nbobj)
+  if (ksum==nbobj && wsum <= c)
   {
 //    printf("CHECKUNIT %d: nbsolheur %d psum %f ksum %d \n", n, nbsolheur, psum, ksum);
     return 1;

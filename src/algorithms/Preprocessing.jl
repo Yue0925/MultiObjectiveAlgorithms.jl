@@ -26,11 +26,11 @@ function klevel_UQCR_csdp(N::Int64, Q::Matrix{Float64}, k::Int64, algorithm::Mul
     con_μ = @constraint(model_sdp, [i in 1:N], X[i,i] - x[i] == 0)
 
     # --------------------------
-    # # todo : relaxed ctr preproc=2
-    # if MOI.get(algorithm, Preproc()) == 2
-    #     length(algorithm.b_iq) > 0 ? @constraint(model_sdp, algorithm.A_iq[:, k+1:end]* x ≤ algorithm.b_iq ) : nothing
-    #     @constraint(model_sdp, algorithm.A_eq[:, k+1:end]* x ≤ algorithm.b_eq )
-    # end
+    # todo : relaxed ctr preproc=2
+    if MOI.get(algorithm, Preproc()) == 2
+        length(algorithm.b_iq) > 0 ? @constraint(model_sdp, algorithm.A_iq[:, k+1:end]* x ≤ algorithm.b_iq ) : nothing
+        length(algorithm.b_eq) > 0 ? @constraint(model_sdp, algorithm.A_eq[:, k+1:end]* x ≤ algorithm.b_eq ) : nothing
+    end
 
     optimize!(model_sdp)
 
