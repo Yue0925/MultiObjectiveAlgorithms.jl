@@ -23,6 +23,7 @@ mutable struct MultiObjectiveBranchBound <: AbstractAlgorithm
     convex_qcr :: Union{Nothing, Bool}                      # QCR convexification parameter 
     heuristic :: Union{Nothing, Bool}
     preproc :: Union{Nothing, Int64}                        # preprocessing choice 0, 1, 2
+    tight_root:: Union{Nothing, Int64}                       # calculate the tight LBS at root (0 : false, 1: QCR, 2 : DW)
 
     # --------------- informations for getting attributes 
     pruned_nodes :: Union{Nothing, Int64}
@@ -36,12 +37,15 @@ mutable struct MultiObjectiveBranchBound <: AbstractAlgorithm
     A_iq :: Union{Nothing, Matrix{Float64}}
     b_eq :: Union{Nothing, Vector{Float64}}
     b_iq :: Union{Nothing, Vector{Float64}}
+    variables:: Union{Nothing, Vector{MOI.VariableIndex}}
+    variableIndex :: Union{Nothing, Dict{MOI.VariableIndex, Int64}}
+    indexVariable :: Union{Nothing, Dict{Int64, MOI.VariableIndex}}
 
     preproc_μ :: Union{Nothing, Vector{Vector{Vector{Float64}}}} # ∀ p obj, ∀ levels, μ
 
-    MultiObjectiveBranchBound() = new(nothing, nothing, nothing, nothing, nothing, nothing,
+    MultiObjectiveBranchBound() = new(nothing, nothing, nothing, true, false, 0, 0,
                                       nothing, nothing, 
-                                      nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, 
+                                      nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing,
                                       nothing
                                 )
 end
@@ -111,6 +115,16 @@ end
 
 function MOI.get(alg::MultiObjectiveBranchBound, attr::Preproc)
     return something(alg.preproc, default(alg, attr))
+end
+
+MOI.supports(::MultiObjectiveBranchBound, ::TightRoot) = true
+
+function MOI.set(alg::MultiObjectiveBranchBound, ::TightRoot, value)
+    alg.tight_root = value ; return
+end
+
+function MOI.get(alg::MultiObjectiveBranchBound, attr::TightRoot)
+    return something(alg.tight_root, default(alg, attr))
 end
 
 # --------- attributes only for getting 
@@ -183,14 +197,30 @@ function MOI.get(alg::MultiObjectiveBranchBound, attr::PreprocMu)
     return something(alg.preproc_μ, default(alg, attr))
 end
 
+MOI.supports(::MultiObjectiveBranchBound, ::Variables) = true
+
+function MOI.get(alg::MultiObjectiveBranchBound, attr::Variables)
+    return something(alg.variables, default(alg, attr))
+end
+
+MOI.supports(::MultiObjectiveBranchBound, ::VariablesIndex) = true
+
+function MOI.get(alg::MultiObjectiveBranchBound, attr::VariablesIndex)
+    return something(alg.variableIndex, default(alg, attr))
+end
+
+MOI.supports(::MultiObjectiveBranchBound, ::IndexVariables) = true
+
+function MOI.get(alg::MultiObjectiveBranchBound, attr::IndexVariables)
+    return something(alg.indexVariable, default(alg, attr))
+end
 
 """
     Load coefficients matrices of the model. 
 """
 function _loadMatrices(algorithm::MultiObjectiveBranchBound, model::Optimizer)
-    varArray = MOI.get(model.inner, MOI.ListOfVariableIndices())
-    N = length(varArray) ; algorithm.nb_vars = N 
-    varIndex = Dict(varArray[i] => i for i=1:N)
+    N = algorithm.nb_vars
+    varIndex = algorithm.variableIndex
 
     # read objective Qs # todo : only for multiple quadratic functions !! 
     if typeof(model.f) == MOI.VectorQuadraticFunction{Float64}
@@ -294,7 +324,7 @@ function _preprocessing_UQCR(model, algorithm::MultiObjectiveBranchBound)
 end
 
 function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Vector{Dict{MOI.VariableIndex, MOI.ConstraintIndex}},
-            tree, node::Node, UBS::Vector{SupportedSolutionPoint}#, LBS::Vector{SupportedSolutionPoint}
+            tree, node::Node, UBS::Vector{SupportedSolutionPoint}, LBS::Vector{SupportedSolutionPoint}
 )
 
     # println("\n\n -------------- node $(node.num) ")
@@ -344,39 +374,43 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
         nothing
     end 
    
-    # newLBS = Vector{SupportedSolutionPoint}()
+    newLBS = Vector{SupportedSolutionPoint}()
 
-    # # todo : global LBS
-    # if isRoot(node)
-    #     LBS = node.lower_bound_set[:]
-    #     newLBS = node.lower_bound_set
-    # else
-        
-    #     for p in node.lower_bound_set
-    #         dominated = true 
-    #         for l in LBS
-    #             if p.y'*l.λ >= l.y'*l.λ
-    #                 dominated = false ; break
-    #             end
-    #         end
+    # todo : global LBS intersection 
+    if MOI.get(algorithm, TightRoot()) > 0 
+        if isRoot(node)
+            LBS = node.lower_bound_set[:]
+            newLBS = node.lower_bound_set
+        else
+            
+            for p in node.lower_bound_set
+                dominated = true 
+                for l in LBS
+                    if p.y'*l.λ >= l.y'*l.λ
+                        dominated = false ; break
+                    end
+                end
 
-    #         if !dominated push!(newLBS, p) end 
-    #     end
+                if !dominated push!(newLBS, p) end 
+            end
 
-    #     for l in LBS
-    #         dominated = true 
-    #         for p in node.lower_bound_set
-    #             if l.y'*p.λ >= p.y'*p.λ
-    #                 dominated = false ; break
-    #             end
-    #         end
-    #         if !dominated push!(newLBS, l) end 
+            for l in LBS
+                dominated = true 
+                for p in node.lower_bound_set
+                    if l.y'*p.λ >= p.y'*p.λ
+                        dominated = false ; break
+                    end
+                end
+                if !dominated push!(newLBS, l) end 
 
-    #     end
-    # end
-    
+            end
+        end
+    else
+        newLBS = node.lower_bound_set
+    end
+
     # test dominance 
-    if fullyExplicitDominanceTest(node.lower_bound_set, UBS, model)
+    if fullyExplicitDominanceTest(newLBS, UBS, model)
         prune!(node, DOMINANCE) ; algorithm.pruned_nodes += 1
         # println(node)
         return
@@ -428,6 +462,10 @@ function optimize_multiobjective!(
 
     # step3 - LP relaxation 
     Bounds = relaxVariables(model)
+    algorithm.variables = MOI.get(model, MOI.ListOfVariableIndices())
+    algorithm.nb_vars = length(algorithm.variables)
+    algorithm.variableIndex = Dict(algorithm.variables[i] => i for i=1:algorithm.nb_vars)
+    algorithm.indexVariable = Dict(i => algorithm.variables[i] for i=1:algorithm.nb_vars)
     
     _loadMatrices(algorithm, model)
 
@@ -444,8 +482,8 @@ function optimize_multiobjective!(
     end
     # println("UBS = ", UBS)
 
-    # # todo : 
-    # LBS = Vector{SupportedSolutionPoint}()
+    # todo : 
+    LBS = Vector{SupportedSolutionPoint}()
 
      
     tree = initTree(algorithm)
@@ -463,7 +501,7 @@ function optimize_multiobjective!(
 
         node_ref = nextNodeTree(tree, algorithm)
 
-        MOBB(algorithm, model, Bounds, tree, node_ref[], UBS)
+        MOBB(algorithm, model, Bounds, tree, node_ref[], UBS, LBS)
         
         if node_ref[].deleted
             finalize(node_ref[])

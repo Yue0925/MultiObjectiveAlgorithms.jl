@@ -413,6 +413,20 @@ struct Preproc <: AbstractAlgorithmAttribute end
 default(::Preproc) = 0
 
 
+
+"""
+    TightRoot <: AbstractAlgorithmAttribute -> Int64
+
+ whether calculate tight root LBS choice.
+
+# Defaults to `0`.
+
+"""
+struct TightRoot <: AbstractAlgorithmAttribute end
+
+default(::TightRoot) = 0
+
+
 """
     PrunedNodeCount <: AbstractAlgorithmAttribute -> Int64
 
@@ -569,6 +583,48 @@ default(::Biq) = Vector{Float64}()
 struct PreprocMu <: AbstractAlgorithmAttribute end
 
 default(::PreprocMu) = Vector{Vector{Vector{Float64}}}()
+
+
+
+"""
+    Variables <: AbstractAlgorithmAttribute -> Vector{MOI.VariableIndex}
+
+list of variables.
+
+# Defaults to `Vector{MOI.VariableIndex}()`.
+
+"""
+struct Variables <: AbstractAlgorithmAttribute end
+
+default(::Variables) = Vector{MOI.VariableIndex}()
+
+
+
+"""
+    VariablesIndex <: AbstractAlgorithmAttribute -> Dict{MOI.VariableIndex, Int64}
+
+
+    
+# Defaults to `Dict{MOI.VariableIndex, Int64}()`.
+
+"""
+struct VariablesIndex <: AbstractAlgorithmAttribute end
+
+default(::VariablesIndex) = Dict{MOI.VariableIndex, Int64}()
+
+
+
+"""
+    IndexVariables <: AbstractAlgorithmAttribute -> Dict{MOI.VariableIndex, Int64}
+
+
+    
+# Defaults to `Dict{MOI.VariableIndex, Int64}()`.
+
+"""
+struct IndexVariables <: AbstractAlgorithmAttribute end
+
+default(::IndexVariables) = Dict{Int64, MOI.VariableIndex}()
 
 
 

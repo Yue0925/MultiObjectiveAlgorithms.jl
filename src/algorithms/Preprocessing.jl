@@ -25,8 +25,7 @@ function klevel_UQCR_csdp(N::Int64, Q::Matrix{Float64}, k::Int64, algorithm::Mul
     
     con_μ = @constraint(model_sdp, [i in 1:N], X[i,i] - x[i] == 0)
 
-    # --------------------------
-    # todo : relaxed ctr preproc=2
+    # relaxed ctr preproc=2
     if MOI.get(algorithm, Preproc()) == 2
         length(algorithm.b_iq) > 0 ? @constraint(model_sdp, algorithm.A_iq[:, k+1:end]* x ≤ algorithm.b_iq ) : nothing
         length(algorithm.b_eq) > 0 ? @constraint(model_sdp, algorithm.A_eq[:, k+1:end]* x ≤ algorithm.b_eq ) : nothing
@@ -56,12 +55,12 @@ function klevel_solve_weighted_sum( k :: Int64,
             λ::Vector{Float64},
             algorithm::MultiObjectiveBranchBound
     )
-    varArray = MOI.get(model, MOI.ListOfVariableIndices())
-    N = length(varArray)
-    varArray_inner = MOI.get(model.inner, MOI.ListOfVariableIndices())
 
-    varIndex_inner = Dict(varArray[i] => i for i=1:N)
-    varIndex = Dict(i => varArray[i] for i=1:N)
+    N = algorithm.nb_vars
+    varArray_inner = algorithm.variables
+
+    varIndex_inner = algorithm.variableIndex 
+    varIndex = algorithm.indexVariable 
 
     λQ = sum( λ[p].* algorithm.Qs[p] for p in 1:length(λ))
 

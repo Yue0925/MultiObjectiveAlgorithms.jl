@@ -5,9 +5,9 @@ include("MOBB.jl")
 function QCR_csdp(Q, c, constant, model,
                                 algorithm::MultiObjectiveBranchBound, qcr_coeff::QCRcoefficients 
     )
-    varArray = MOI.get(model.inner, MOI.ListOfVariableIndices())
-    N = length(varArray)
-    varIndex = Dict(varArray[i] => i for i=1:N)
+
+    N = algorithm.nb_vars
+    varIndex = algorithm.variableIndex
 
     # SDP model ...
     model_sdp = Model(CSDP.Optimizer) ; JuMP.set_silent(model_sdp) 
@@ -105,12 +105,13 @@ function solve_weighted_sum(
     model::Optimizer,
     λ::Vector{Float64},
     QCR::Bool,
-    qcr_coeff::QCRcoefficients
+    qcr_coeff::QCRcoefficients,
+    algorithm :: MultiObjectiveBranchBound
     ) 
 
-    varArray = MOI.get(model.inner, MOI.ListOfVariableIndices())
+    varArray = algorithm.variables
     N = length(varArray)
-    varIndex = Dict(varArray[i] => i for i=1:N)
+    varIndex = algorithm.variableIndex
 
     # --------------------------------------------
     # -- by defaut 

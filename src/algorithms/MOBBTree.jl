@@ -379,7 +379,8 @@ function MOLP(algorithm,
         push!(Λ, λ) 
 
         # if no preprocessing 
-        if MOI.get(algorithm, ConvexQCR()) && MOI.get(algorithm, Preproc()) == 0   #    && isRoot(node)     MOI.get(algorithm, Preproc()) == 0
+        if (MOI.get(algorithm, TightRoot()) ==1 && isRoot(node) ) ||
+            (MOI.get(algorithm, ConvexQCR()) && MOI.get(algorithm, Preproc()) == 0)   
             is_solved = QCR_csdp(algorithm.Qs[i], algorithm.Ls[i], algorithm.Cs[i], 
                                     model, algorithm, node.qcr_coeff
                         )
@@ -394,9 +395,18 @@ function MOLP(algorithm,
     iter = 0
     for λ in Λ
         iter += 1   #isRoot(node)     MOI.get(algorithm, Preproc()) == 0
-        status, x, y = MOI.get(algorithm, Preproc()) == 0 ? 
-                            solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff) :
-                            klevel_solve_weighted_sum(node.depth, node, model, λ, algorithm)
+        status, x, y = nothing, nothing, nothing
+        # status, x, y = MOI.get(algorithm, Preproc()) == 0 ? 
+        #                     solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff) :
+        #                     klevel_solve_weighted_sum(node.depth, node, model, λ, algorithm)
+
+        if (MOI.get(algorithm, TightRoot()) ==1 && isRoot(node) )
+            status, x, y = solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff, algorithm) 
+        elseif MOI.get(algorithm, Preproc()) == 0 
+            status, x, y = solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff, algorithm) 
+        else
+            status, x, y = klevel_solve_weighted_sum(node.depth, node, model, λ, algorithm)
+        end
 
         # if status==OPTIMAL println("λ = ", λ , "\t qcr value = ", λ'*y ) end 
         # println("λ ", λ)
