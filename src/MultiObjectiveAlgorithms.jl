@@ -440,6 +440,21 @@ struct PrunedNodeCount <: AbstractAlgorithmAttribute end
 default(::PrunedNodeCount) = 0
 
 
+
+"""
+    PrunedDominanceNodeCount <: AbstractAlgorithmAttribute -> Int64
+
+total pruned nodes by dominance.
+
+# Defaults to `0`.
+
+"""
+struct PrunedDominanceNodeCount <: AbstractAlgorithmAttribute end
+
+default(::PrunedDominanceNodeCount) = 0
+
+
+
 """
     Heuristic <: AbstractAlgorithmAttribute -> Bool
 

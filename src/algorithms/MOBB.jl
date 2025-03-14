@@ -27,6 +27,7 @@ mutable struct MultiObjectiveBranchBound <: AbstractAlgorithm
 
     # --------------- informations for getting attributes 
     pruned_nodes :: Union{Nothing, Int64}
+    pruned_dominance_nodes :: Union{Nothing, Int64}
     heuristic_time :: Union{Nothing, Float64}
 
     nb_vars :: Union{Nothing, Int64}
@@ -44,7 +45,7 @@ mutable struct MultiObjectiveBranchBound <: AbstractAlgorithm
     preproc_μ :: Union{Nothing, Vector{Vector{Vector{Float64}}}} # ∀ p obj, ∀ levels, μ
 
     MultiObjectiveBranchBound() = new(nothing, nothing, nothing, true, false, 0, 0,
-                                      nothing, nothing, 
+                                      nothing, nothing, nothing,
                                       nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing,
                                       nothing
                                 )
@@ -133,6 +134,15 @@ MOI.supports(::MultiObjectiveBranchBound, ::PrunedNodeCount) = true
 function MOI.get(alg::MultiObjectiveBranchBound, attr::PrunedNodeCount)
     return something(alg.pruned_nodes, default(alg, attr))
 end
+
+
+# --------- attributes only for getting 
+MOI.supports(::MultiObjectiveBranchBound, ::PrunedDominanceNodeCount) = true
+
+function MOI.get(alg::MultiObjectiveBranchBound, attr::PrunedDominanceNodeCount)
+    return something(alg.pruned_dominance_nodes, default(alg, attr))
+end
+
 
 
 MOI.supports(::MultiObjectiveBranchBound, ::HeuristicTime) = true
@@ -411,8 +421,9 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
 
     # test dominance 
     if fullyExplicitDominanceTest(newLBS, UBS, model)
-        prune!(node, DOMINANCE) ; algorithm.pruned_nodes += 1
+        prune!(node, DOMINANCE) ; algorithm.pruned_nodes += 1 ; algorithm.pruned_dominance_nodes += 1
         # println(node)
+        # @info "node $(node.num) is pruned !"
         return
         nothing
     end
@@ -446,7 +457,7 @@ function optimize_multiobjective!(
     model::Optimizer,
     # verbose :: Bool = false,
 )
-    model.total_nodes = 0 ; algorithm.pruned_nodes = 0
+    model.total_nodes = 0 ; algorithm.pruned_nodes = 0 ; algorithm.pruned_dominance_nodes = 0 
     start_time = time()
 
     # step1 - set tolerance to inner model 
@@ -455,7 +466,7 @@ function optimize_multiobjective!(
     end
 
     # step2 - check lower bounds limit 
-    if MOI.get(algorithm, LowerBoundsLimit()) < MOI.output_dimension(model.f)
+    if MOI.get(algorithm, LowerBoundsLimit()) <= MOI.output_dimension(model.f)
         # at least p lower bounds optimized on each objective 
         MOI.set(algorithm, LowerBoundsLimit(), MOI.output_dimension(model.f) +1 )
     end
@@ -480,9 +491,7 @@ function optimize_multiobjective!(
     if MOI.get(algorithm, Heuristic())
         algorithm.heuristic_time = heuristic(model, UBS, algorithm)
     end
-    # println("UBS = ", UBS)
 
-    # todo : 
     LBS = Vector{SupportedSolutionPoint}()
 
      

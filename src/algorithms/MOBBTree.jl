@@ -355,13 +355,13 @@ function _fix_λ(λ_count, p, Λ)
     end
 end
 
-# todo : add equivalent solutions
-function push_avoiding_duplicate(vec::Vector{SupportedSolutionPoint}, candidate::SupportedSolutionPoint) :: Bool
-    for sol in vec
-        if sol ≈ candidate return false end 
-    end
-    push!(vec, candidate) ; return true
-end
+# # todo : add equivalent solutions
+# function push_avoiding_duplicate(vec::Vector{SupportedSolutionPoint}, candidate::SupportedSolutionPoint) :: Bool
+#     for sol in vec
+#         if sol ≈ candidate return false end 
+#     end
+#     push!(vec, candidate) ; return true
+# end
 
 """
 Stop looking for lower bounds if duplicate is encounterd
@@ -527,6 +527,93 @@ function getNadirPoints(UBS::Vector{SupportedSolutionPoint}, model) :: Vector{Su
     return nadir_pts
 end
 
+
+
+function local_nadir_points(UBS::Vector{SupportedSolutionPoint}, p::Int64)
+    if length(UBS) == 1 return UBS end 
+
+    nadir_pts = Vector{SupportedSolutionPoint}()
+
+    M = UBS[1].y[:] 
+    for i in 2:length(UBS)
+        for z in 1:p
+            if UBS[i].y[z] > M[z] M[z] = UBS[i].y[z] end 
+        end
+    end
+
+    push!(nadir_pts, SupportedSolutionPoint(Set{Vector{Float64}}(), 
+                        M, 
+                        Vector{Float64}(), false
+                    )
+    )
+
+    for z in UBS
+        update_local_nadir_points(nadir_pts, z, p)
+    end
+
+    return nadir_pts
+end
+
+function update_local_nadir_points(nadir_pts ::Vector{SupportedSolutionPoint}, z ::SupportedSolutionPoint, p::Int64)
+    A = Vector{SupportedSolutionPoint}() ; A_idx = Set() ; i = 0
+    for u in nadir_pts
+        i += 1
+        if all(z.y .< u.y)
+            push!(A, u) ; push!(A_idx, i)
+        end
+    end
+
+    B = Dict(i => Vector{SupportedSolutionPoint}() for i in 1:p) ; P = Dict(i => Vector{SupportedSolutionPoint}() for i in 1:p)
+    for j in 1:p
+        for u in nadir_pts
+            if z.y[j] == u.y[j] && all(z.y[1:j-1] .< u.y[1:j-1]) && all(z.y[j+1:end] .< u.y[j+1:end])
+                push!(B[j], u)
+            end
+        end
+    end
+
+
+    for u in A
+        for j in 1:p
+            y = u.y[:]; y[j] = z.y[j]
+            push!(P[j], SupportedSolutionPoint(Set{Vector{Float64}}(), 
+                                                    y, 
+                                                    Vector{Float64}(), false
+                                                )
+            )
+        end
+    end
+
+    Ph = Dict(i => Vector{SupportedSolutionPoint}() for i in 1:p)
+    for j in 1:p
+        for ap in P[j]
+            redundant = false
+            for u in [P[j] ; B[j]]
+                if all(ap.y .<= u.y) && any(ap.y .< u.y)
+                    redundant = true ; break
+                end
+            end
+
+            if !redundant
+                push!(Ph[j], ap)
+            end
+        end
+
+    end
+
+
+    deleteat!(nadir_pts, sort(collect(A_idx)))
+    for j in 1:p 
+        for u in Ph[j]
+            push!(nadir_pts, u)
+        end
+        
+    end
+
+end
+
+
+
 """
 A fully explicit dominance test, and prune the given node if it's fathomed by dominance.
 (i.e. ∀ l∈L: ∃ u∈U s.t. λu ≤ λl )
@@ -536,7 +623,16 @@ function fullyExplicitDominanceTest(lower_bound_set::Vector{SupportedSolutionPoi
     # we can't compare the LBS and UBS if the incumbent set is empty
     if length(UBS) == 0 || length(lower_bound_set)==0 return false end
 
-    p = MOI.output_dimension(model.f) ; nadir_pts = getNadirPoints(UBS, model)
+    p = MOI.output_dimension(model.f) #; nadir_pts = getNadirPoints(UBS, model)
+
+    # println("\n\n ------------------------------- ")
+    # println("BO nadir_pts = ", nadir_pts)
+    nadir_pts = local_nadir_points(UBS, MOI.output_dimension(model.f))
+
+    # println("LBS = ", lower_bound_set)
+    # println("UBS = ", UBS)
+    # println("TO nadir_pts = ", nadir_pts)
+
 
     # ------------------------------------------
     # if the LBS consists of a single point
