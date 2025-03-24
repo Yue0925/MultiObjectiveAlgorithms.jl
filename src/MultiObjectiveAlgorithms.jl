@@ -405,12 +405,12 @@ default(::ConvexQCR) = false
 
  whether preprocessing choice.
 
-# Defaults to `0`.
+# Defaults to `-1`.
 
 """
 struct Preproc <: AbstractAlgorithmAttribute end
 
-default(::Preproc) = 0
+default(::Preproc) = -1
 
 
 

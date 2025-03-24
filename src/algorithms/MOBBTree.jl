@@ -380,7 +380,8 @@ function MOLP(algorithm,
 
         # if no preprocessing 
         if (MOI.get(algorithm, TightRoot()) ==1 && isRoot(node) ) ||
-            (MOI.get(algorithm, ConvexQCR()) && MOI.get(algorithm, Preproc()) == 0)   
+            (isRoot(node) && MOI.get(algorithm, Preproc()) == 0) ||
+            ( MOI.get(algorithm, Preproc()) < 0 && MOI.get(algorithm, ConvexQCR()) )   
             is_solved = QCR_csdp(algorithm.Qs[i], algorithm.Ls[i], algorithm.Cs[i], 
                                     model, algorithm, node.qcr_coeff
                         )
@@ -402,7 +403,7 @@ function MOLP(algorithm,
 
         if (MOI.get(algorithm, TightRoot()) ==1 && isRoot(node) )
             status, x, y = solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff, algorithm) 
-        elseif MOI.get(algorithm, Preproc()) == 0 
+        elseif MOI.get(algorithm, Preproc()) <= 0 
             status, x, y = solve_weighted_sum(model, λ, MOI.get(algorithm, ConvexQCR()), node.qcr_coeff, algorithm) 
         else
             status, x, y = klevel_solve_weighted_sum(node.depth, node, model, λ, algorithm)
@@ -625,14 +626,7 @@ function fullyExplicitDominanceTest(lower_bound_set::Vector{SupportedSolutionPoi
 
     p = MOI.output_dimension(model.f) #; nadir_pts = getNadirPoints(UBS, model)
 
-    # println("\n\n ------------------------------- ")
-    # println("BO nadir_pts = ", nadir_pts)
     nadir_pts = local_nadir_points(UBS, MOI.output_dimension(model.f))
-
-    # println("LBS = ", lower_bound_set)
-    # println("UBS = ", UBS)
-    # println("TO nadir_pts = ", nadir_pts)
-
 
     # ------------------------------------------
     # if the LBS consists of a single point
@@ -670,8 +664,11 @@ function fullyExplicitDominanceTest(lower_bound_set::Vector{SupportedSolutionPoi
         return dominates(UBS_ideal_sp, LBS_ideal_sp)
     end
 
+    # todo : ? 
     # test range condition necessary 1 : LBS ⊆ UBS (i.e. UBS includes the LP lexico-optimum)
-    if !dominates( UBS_ideal_sp, LBS_ideal_sp)  return false end
+    if !dominates( UBS_ideal_sp, LBS_ideal_sp)  
+        return false 
+    end
 
     # test condition necessary 2 : UBS dominates LBS 
     # iterate of all local nadir points
@@ -685,7 +682,7 @@ function fullyExplicitDominanceTest(lower_bound_set::Vector{SupportedSolutionPoi
 
         # case 3 : complete pairwise comparison
         for l in lower_bound_set             # ∀ l ∈ LBS 
-            if l.λ'*u.y < l.λ'*l.y         # todo : add TOL ? 
+            if l.λ'*u.y < l.λ'*l.y         
                 existence = true ; break
             end
         end

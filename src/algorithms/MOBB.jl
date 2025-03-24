@@ -22,7 +22,7 @@ mutable struct MultiObjectiveBranchBound <: AbstractAlgorithm
     tolerance :: Union{Nothing, Float64}                    # numerical tolerance
     convex_qcr :: Union{Nothing, Bool}                      # QCR convexification parameter 
     heuristic :: Union{Nothing, Bool}
-    preproc :: Union{Nothing, Int64}                        # preprocessing choice 0, 1, 2
+    preproc :: Union{Nothing, Int64}                        # preprocessing choice -1, 0, 1, 2
     tight_root:: Union{Nothing, Int64}                       # calculate the tight LBS at root (0 : false, 1: QCR, 2 : DW)
 
     # --------------- informations for getting attributes 
@@ -339,6 +339,7 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
 
     # println("\n\n -------------- node $(node.num) ")
 
+
     # get the actual node
     @assert node.activated == true "the actual node is not activated "
     node.activated = false ;  node.assignment = getPartialAssign(node)
@@ -348,7 +349,6 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
         prune!(node, INFEASIBILITY) ; algorithm.pruned_nodes += 1
         # println(node)
         return
-        nothing
     end
 
     # if node.depth <= algorithm.nb_vars/2 # !isRoot(node) && node.var_bound == 1.0 # && 
@@ -381,7 +381,6 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
         prune!(node, INTEGRITY) ; algorithm.pruned_nodes += 1 
         # println(node)
         return 
-        nothing
     end 
    
     newLBS = Vector{SupportedSolutionPoint}()
@@ -389,43 +388,51 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
     # todo : global LBS intersection 
     if MOI.get(algorithm, TightRoot()) > 0 
         if isRoot(node)
-            LBS = node.lower_bound_set[:]
+            for p in node.lower_bound_set push!(LBS, p) end 
             newLBS = node.lower_bound_set
         else
             
+            dominated = [false for _ in node.lower_bound_set] ; i = 0
             for p in node.lower_bound_set
-                dominated = true 
+                i += 1  
                 for l in LBS
-                    if p.y'*l.λ >= l.y'*l.λ
-                        dominated = false ; break
+                    if p.y'*l.λ < l.y'*l.λ
+                        dominated[i] = true ; break
                     end
                 end
-
-                if !dominated push!(newLBS, p) end 
+            end
+            for i in 1:length(node.lower_bound_set)
+                if !dominated[i]
+                    push!(newLBS, node.lower_bound_set[i])
+                end
             end
 
+            dominated = [false for _ in LBS] ; i = 0
             for l in LBS
-                dominated = true 
+                i += 1  
                 for p in node.lower_bound_set
-                    if l.y'*p.λ >= p.y'*p.λ
-                        dominated = false ; break
+                    if l.y'*p.λ < p.y'*p.λ
+                        dominated[i] = true ; break
                     end
                 end
-                if !dominated push!(newLBS, l) end 
-
             end
+            for i in 1:length(LBS)
+                if !dominated[i]
+                    push!(newLBS, LBS[i])
+                end
+            end
+
         end
     else
         newLBS = node.lower_bound_set
     end
 
+    # println("newLBS = ", newLBS)
     # test dominance 
     if fullyExplicitDominanceTest(newLBS, UBS, model)
         prune!(node, DOMINANCE) ; algorithm.pruned_nodes += 1 ; algorithm.pruned_dominance_nodes += 1
         # println(node)
-        # @info "node $(node.num) is pruned !"
         return
-        nothing
     end
 
 
@@ -442,6 +449,7 @@ function MOBB(algorithm::MultiObjectiveBranchBound, model::Optimizer, Bounds::Ve
     ]
     for child in children
         addTree(tree, algorithm, child) ; model.total_nodes += 1
+        if MOI.get(algorithm, Preproc()) == 0 child.qcr_coeff = node.qcr_coeff end 
         push!(node.succs, child)
     end
 
