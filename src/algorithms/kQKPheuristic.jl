@@ -115,7 +115,7 @@ function heuristic(model::Optimizer, UBS::Vector{SupportedSolutionPoint}, algori
 
     end
     
-    heuristic_time = round(time() - start_time, digits = 4)
+    heuristic_time = round(time() - start_time, digits = 2)
     println("heuristic iters ", length(Λ), " with time(s) ", heuristic_time)
     return heuristic_time
 end

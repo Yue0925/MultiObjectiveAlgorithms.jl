@@ -507,7 +507,6 @@ end
 """
 Return local nadir points (so-called corner points) of the given UBS.
 """
-# todo : p>3 ?!!!!!!!!!!
 function getNadirPoints(UBS::Vector{SupportedSolutionPoint}, model) :: Vector{SupportedSolutionPoint}
     p = MOI.output_dimension(model.f)
     nadir_pts = Vector{SupportedSolutionPoint}()
@@ -624,9 +623,9 @@ function fullyExplicitDominanceTest(lower_bound_set::Vector{SupportedSolutionPoi
     # we can't compare the LBS and UBS if the incumbent set is empty
     if length(UBS) == 0 || length(lower_bound_set)==0 return false end
 
-    p = MOI.output_dimension(model.f) #; nadir_pts = getNadirPoints(UBS, model)
+    p = MOI.output_dimension(model.f) ; nadir_pts = getNadirPoints(UBS, model)
 
-    nadir_pts = local_nadir_points(UBS, MOI.output_dimension(model.f))
+    # nadir_pts = local_nadir_points(UBS, MOI.output_dimension(model.f))
 
     # ------------------------------------------
     # if the LBS consists of a single point
@@ -664,7 +663,6 @@ function fullyExplicitDominanceTest(lower_bound_set::Vector{SupportedSolutionPoi
         return dominates(UBS_ideal_sp, LBS_ideal_sp)
     end
 
-    # todo : ? 
     # test range condition necessary 1 : LBS ⊆ UBS (i.e. UBS includes the LP lexico-optimum)
     if !dominates( UBS_ideal_sp, LBS_ideal_sp)  
         return false 

@@ -81,6 +81,8 @@ int checksolutionunit(int c, float z);
 void primalHeuristic(int *x, int N, double alpha);
 void roundingHeuristic(int * x, int N, double alpha);
 
+float obj_val(boolean solution[MSIZE] );
+int comp(const void *a, const void *b) ;
 void load_data(int *n_) ; 
 
 /* ======================================================================
@@ -115,145 +117,161 @@ int main(int argc, char *argv[])
 		for (i = 0; i < 100; i++) {
 
 			primalHeuristic(xstar, n, ((double) i) / (double) 100);
-
+      int same = 1;
+      if (nbsolheur > 0 ){
+        for (j = 0; j<n; j++)
+        {
+          if(xstar[j] != xsol[nbsolheur-1][j]) {
+            same = 0; break;
+          }
+        }
+      }else{same = 0;}
+      
+      if (same == 0){
 			// copy the result only if it's better than the current and it's a feasible solution
     		memcpy(xsol[nbsolheur], xstar, MSIZE*sizeof(boolean));
+        nbsolheur++;
+      }
 //			if (checksolutionunit(c,zbest) && 
 //				((max_problem && zbest < heur_val)
 //					|| (!max_problem && zbest > heur_val))) {
         // todo : checksolutionunit comment for maxcut problem 
-			if (zbest!= heur_val) {
-		        nbsolheur++;
-				zbest = heur_val;
-			}
+			// if (zbest!= heur_val) {
+		  //       nbsolheur++;
+			// 	zbest = heur_val;
+			// }
 
 		}
 
 //	case ROUNDING_HEUR:
     
-      matq = fopen("q.txt", "w");
-      matc = fopen("c.txt", "w");
+//       matq = fopen("q.txt", "w");
+//       matc = fopen("c.txt", "w");
 
-      matl = fopen("l.txt", "w");
-      fprintf(matl, "%d \n", 0) ; 
-      fclose(matl);
+//       matl = fopen("l.txt", "w");
+//       fprintf(matl, "%d \n", 0) ; 
+//       fclose(matl);
 
-      matA = fopen("A.txt", "w");
-      matb = fopen("b.txt", "w");
-      matAbis = fopen("Abis.txt", "w");
-      matbbis = fopen("bbis.txt", "w");
+//       matA = fopen("A.txt", "w");
+//       matb = fopen("b.txt", "w");
+//       matAbis = fopen("Abis.txt", "w");
+//       matbbis = fopen("bbis.txt", "w");
 
-      /* Ecriture dans q.txt*/
-      no_nul=(n*(n-1))/2;
-      fprintf(matq,"%d %d\n",n,no_nul);
-      for ( i=1;i<n;i++)
-        for (j=i+1;j<n+1;j++){
-          fprintf(matq,"%d %d ",i,j);
-          if (i==n-1 && j==n)
-            fprintf(matq,"%f ",-p[i-1][j-1]);
-          else
-            fprintf(matq,"%f\n",-p[i-1][j-1]);
-        }
+//       /* Ecriture dans q.txt*/
+//       no_nul=(n*(n-1))/2;
+//       fprintf(matq,"%d %d\n",n,no_nul);
+//       for ( i=1;i<n;i++)
+//         for (j=i+1;j<n+1;j++){
+//           fprintf(matq,"%d %d ",i,j);
+//           if (i==n-1 && j==n)
+//             fprintf(matq,"%f ",-p[i-1][j-1]);
+//           else
+//             fprintf(matq,"%f\n",-p[i-1][j-1]);
+//         }
 
-      /* Ecriture dans c.txt */
-      fprintf(matc,"%d\n",1);
-      for (i=1;i<n;i++)
-        fprintf(matc,"%f\n",-p[i-1][i-1] - vecl[i-1]);
-      fprintf(matc,"%f ",-p[n-1][n-1] - vecl[n-1]);
+//       /* Ecriture dans c.txt */
+//       fprintf(matc,"%d\n",1);
+//       for (i=1;i<n;i++)
+//         fprintf(matc,"%f\n",-p[i-1][i-1] - vecl[i-1]);
+//       fprintf(matc,"%f ",-p[n-1][n-1] - vecl[n-1]);
 
-      /* Ecriture dans A.txt*/
-      fprintf(matA,"%d\n",0);
+//       /* Ecriture dans A.txt*/
+//       fprintf(matA,"%d\n",0);
    
 
-      /* Ecriture dans b.txt*/
-      fprintf(matb,"%d ",0);
+//       /* Ecriture dans b.txt*/
+//       fprintf(matb,"%d ",0);
 
-      /* Ecriture dans Abis.txt*/
-      fprintf(matAbis,"%d\n",0);
+//       /* Ecriture dans Abis.txt*/
+//       fprintf(matAbis,"%d\n",0);
       
-      /* Ecriture dans bbis.txt*/
-      fprintf(matbbis,"%d ",0);
+//       /* Ecriture dans bbis.txt*/
+//       fprintf(matbbis,"%d ",0);
 
-      fclose(matq);
-      fclose(matA);
-      fclose(matc);
-      fclose(matb);
-      fclose(matAbis);
-      fclose(matbbis);
+//       fclose(matq);
+//       fclose(matA);
+//       fclose(matc);
+//       fclose(matb);
+//       fclose(matAbis);
+//       fclose(matbbis);
 
 
-      system("./QCR_E-kQKP");
-      system("grep Primal sol_chr.txt > valeur.txt");
-//       system("grep Primal sol.txt > valeur.txt");
-      FILE *tmp_file = fopen("valeur.txt", "r");
-      char tmp[100];
-      char *aie = fgets(tmp, 99, tmp_file);
-      fclose(tmp_file);
-      if(aie == NULL)
-      {
-        fflush(NULL);
-        printf("Infaisable ou diverge\n");
-        fflush(NULL);
-//        break;
-      }
-      else
-      {
-        float bound;
-        sscanf(tmp, "Primal objective value: %f", &bound);
-        BORNESDP = bound;
+//       system("./QCR_E-kQKP");
+//       system("grep Primal sol_chr.txt > valeur.txt");
+// //       system("grep Primal sol.txt > valeur.txt");
+//       FILE *tmp_file = fopen("valeur.txt", "r");
+//       char tmp[100];
+//       char *aie = fgets(tmp, 99, tmp_file);
+//       fclose(tmp_file);
+//       if(aie == NULL)
+//       {
+//         fflush(NULL);
+//         printf("Infaisable ou diverge\n");
+//         fflush(NULL);
+// //        break;
+//       }
+//       else
+//       {
+//         float bound;
+//         sscanf(tmp, "Primal objective value: %f", &bound);
+//         BORNESDP = bound;
 	
-//	        fflush(NULL);
-//        printf("valeur bound: %f\n", bound);
-//        fflush(NULL);
-        sol = fopen("prob.sol","r");
-        fin=0;
-        while(fin < 2)
-        {
-          fscanf(sol,"%lf",&a);
-          if (a==2)
-          {
-            fscanf(sol,"%lf",&a);
-            if (a==1)
-              fin++;
-          }
-        }
-        fscanf(sol,"%d",&i);
-        fscanf(sol,"%d",&j);
-        fscanf(sol,"%lf",&a);
-        for (l=0;l<=n;l++)
-        {
-          fscanf(sol,"%d",&i);
-          fscanf(sol,"%d",&j);
-          fscanf(sol,"%d",&i);
-          fscanf(sol,"%d",&j);
-          fscanf(sol,"%lf",&a);
-          xsdp[l]=a;
-        }
-        fclose(sol);
-      }
+// //	        fflush(NULL);
+// //        printf("valeur bound: %f\n", bound);
+// //        fflush(NULL);
+//         sol = fopen("prob.sol","r");
+//         fin=0;
+//         while(fin < 2)
+//         {
+//           fscanf(sol,"%lf",&a);
+//           if (a==2)
+//           {
+//             fscanf(sol,"%lf",&a);
+//             if (a==1)
+//               fin++;
+//           }
+//         }
+//         fscanf(sol,"%d",&i);
+//         fscanf(sol,"%d",&j);
+//         fscanf(sol,"%lf",&a);
+//         for (l=0;l<=n;l++)
+//         {
+//           fscanf(sol,"%d",&i);
+//           fscanf(sol,"%d",&j);
+//           fscanf(sol,"%d",&i);
+//           fscanf(sol,"%d",&j);
+//           fscanf(sol,"%lf",&a);
+//           xsdp[l]=a;
+//         }
+//         fclose(sol);
+//       }
 
-		for (i = 0; i < 100; i++) {
-			roundingHeuristic(xstar, n, ((double) i) / (double) 100); // change the sign because minimization problem
+// 		for (i = 0; i < 100; i++) {
+// 			roundingHeuristic(xstar, n, ((double) i) / (double) 100); // change the sign because minimization problem
 
-    		memcpy(xsol[nbsolheur], xstar, MSIZE*sizeof(boolean));
-//			if (checksolutionunit(c,zbest) && 
-//				((max_problem && zbest < heur_val)
-//					|| (!max_problem && zbest > heur_val))
-      //todo: comment for maxcut problem
-			if ( zbest!= heur_val) {
-		        nbsolheur++;
-				zbest = heur_val;
-			}
-		}
+//     		memcpy(xsol[nbsolheur], xstar, MSIZE*sizeof(boolean));
+// //			if (checksolutionunit(c,zbest) && 
+// //				((max_problem && zbest < heur_val)
+// //					|| (!max_problem && zbest > heur_val))
+//       //todo: comment for maxcut problem
+// 			if ( zbest!= heur_val) {
+// 		        nbsolheur++;
+// 				zbest = heur_val;
+// 			}
+// 		}
     //todo: comment for maxcut problem
   
 
-    printf(" nbsolheur = %d \n", nbsolheur);
+    // printf(" nbsolheur = %d \n", nbsolheur);
 
     FILE* f = fopen("heur_sol.data", "w") ; 
-    fprintf(f, "%d \n", nbsolheur) ;
+    fprintf(f, "%d \n", 10) ;
 
-    for (i = 0; i < nbsolheur; i++)
+
+    qsort(xsol, nbsolheur, sizeof(xsol[0]), comp);
+
+
+    for (i = 0; i < 10; i++)
     {
       for (j = 0 ; j < n; j++ )
         fprintf(f, "%d ", xsol[i][j]) ; 
@@ -271,6 +289,24 @@ int main(int argc, char *argv[])
  return EXIT_SUCCESS;
 }  /* END main */
 
+
+float obj_val(boolean solution[MSIZE] ){
+    float val = 0.0 ; 
+    int i = 0, j = 0;
+    for (; i < n; i++)
+    {
+      for (; j<n ; j++){
+        val += p[i][j] * solution[i] * solution[j] ; 
+      }
+      val += vecl[i] * solution[i] ; 
+    }
+    
+    return val;
+}
+
+int comp(const void *a, const void *b) {
+    return (int)(obj_val(b) - obj_val(a)) ; 
+}
 
 void load_data(int *n_ ){
   FILE *f = fopen("inst.data", "r") ; 

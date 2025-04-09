@@ -11,7 +11,7 @@ function QCR_csdp(Q, c, constant, model,
 
     # SDP model ...
     model_sdp = Model(CSDP.Optimizer) ; JuMP.set_silent(model_sdp) 
-    set_attribute(model_sdp, "axtol", 1.0e-5) ; set_attribute(model_sdp, "atytol", 1.0e-5)
+    set_attribute(model_sdp, "axtol", 1.0e-4) ; set_attribute(model_sdp, "atytol", 1.0e-4)
     set_attribute(model_sdp, "maxiter", 200) 
 
     @variable(model_sdp, x[1:N] )

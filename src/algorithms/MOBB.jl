@@ -499,6 +499,7 @@ function optimize_multiobjective!(
     if MOI.get(algorithm, Heuristic())
         algorithm.heuristic_time = heuristic(model, UBS, algorithm)
     end
+    # println("global UBS = ", UBS)
 
     LBS = Vector{SupportedSolutionPoint}()
 
